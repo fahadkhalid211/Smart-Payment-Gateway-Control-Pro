@@ -25,6 +25,7 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           port: ${{ secrets.FTP_PORT || 21 }}
           protocol: ${{ secrets.FTP_PROTOCOL || 'ftp' }}
+          log-level: verbose
           local-dir: ./
           server-dir: ${{ secrets.FTP_SERVER_DIR || '/public_html/wp-content/plugins/gateway-conditioner-for-woocommerce/' }}
           exclude: |
