@@ -12,10 +12,6 @@
 	var ROLES          = SPGC.roles;
 	var COUNTRIES      = SPGC.countries;
 	var COND_TYPES     = SPGC.condTypes;
-	var FREE_TYPES     = SPGC.freeCondTypes;   // e.g. ['category','product']
-	var FREE_LIMIT     = SPGC.freeRuleLimit;   // e.g. 3
-	var IS_PRO         = SPGC.isPro;
-	var UPGRADE_URL    = SPGC.upgradeUrl;
 	var I18N           = SPGC.i18n;
 
 	/* -------------------------------------------------------------------------
@@ -24,10 +20,6 @@
 
 	function esc( s ) {
 		return $( '<span>' ).text( String( s ) ).html();
-	}
-
-	function isFreeType( ct ) {
-		return FREE_TYPES.indexOf( ct ) > -1;
 	}
 
 	function buildOptions( map, selected ) {
@@ -49,18 +41,14 @@
 
 	/**
 	 * Build the condition-type <select> options.
-	 * Pro-only options get a suffix label and disabled attribute when not Pro.
+	 * All condition types are unlocked in the Pro version.
 	 */
 	function buildCondTypeOptions( selected ) {
 		var html = '';
 		$.each( COND_TYPES, function ( k, v ) {
-			var isPro  = ! isFreeType( k );
-			var locked = isPro && ! IS_PRO;
-			var label  = locked ? v + ' — ' + I18N.proSuffix : v;
 			html += '<option value="' + esc( k ) + '"' +
 				( k === selected ? ' selected' : '' ) +
-				( locked ? ' disabled class="is-pro-opt"' : '' ) +
-				'>' + esc( label ) + '</option>';
+				'>' + esc( v ) + '</option>';
 		} );
 		return html;
 	}
@@ -243,43 +231,12 @@
 		} );
 	}
 
-	/** Update the badge count and enable/disable the Add Rule button. */
+	/** Update the badge count and rule counter */
 	function updateUI() {
-		var count    = ruleCount();
-		var atLimit  = ! IS_PRO && count >= FREE_LIMIT;
-
+		var count = ruleCount();
 		$( '#spgc-badge' ).text( count + ' ' + I18N.badge );
 		$( '#spgc-stat-num' ).text( count );
-
-		if ( atLimit ) {
-			$( '#spgc-add-btn' ).prop( 'disabled', true ).addClass( 'is-disabled' );
-			showLimitBanner();
-		} else {
-			$( '#spgc-add-btn' ).prop( 'disabled', false ).removeClass( 'is-disabled' );
-			hideLimitBanner();
-		}
-	}
-
-	function showLimitBanner() {
-		if ( $( '#spgc-limit-banner-js' ).length ) {
-			return;
-		}
-		var banner =
-			'<div class="spgc-limit-banner" id="spgc-limit-banner-js">' +
-			'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>' +
-			'<div class="spgc-limit-banner-text">' +
-			'<strong>' + esc( I18N.limitReached ) + '</strong>' +
-			'<span>' + esc( I18N.upgradeCta ) + '</span>' +
-			'</div>' +
-			'<a href="' + esc( UPGRADE_URL ) + '" target="_blank" rel="noopener noreferrer">' +
-			'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>' +
-			' Upgrade to Pro' +
-			'</a></div>';
-		$( '#spgc-rules-list' ).before( banner );
-	}
-
-	function hideLimitBanner() {
-		$( '#spgc-limit-banner-js' ).remove();
+		$( '#spgc-add-btn' ).prop( 'disabled', false ).removeClass( 'is-disabled' );
 	}
 
 	/* -------------------------------------------------------------------------
@@ -290,20 +247,10 @@
 	$( document ).on( 'change', '.spgc-ct', function () {
 		var select = $( this );
 		var ct     = select.val();
-
-		// Guard: if a non-Pro user somehow selects a Pro option, revert it.
-		if ( ! IS_PRO && ! isFreeType( ct ) ) {
-			select.val( 'category' );
-			ct = 'category';
-			// Friendly prompt to upgrade.
-			window.open( UPGRADE_URL, '_blank', 'noopener,noreferrer' );
-			return;
-		}
-
-		var row  = select.closest( '.spgc-condition-row' );
-		var card = row.closest( '.spgc-rule' );
-		var ri   = card.data( 'index' );
-		var ci   = row.data( 'cond' );
+		var row    = select.closest( '.spgc-condition-row' );
+		var card   = row.closest( '.spgc-rule' );
+		var ri     = card.data( 'index' );
+		var ci     = row.data( 'cond' );
 
 		row.find( '.spgc-op' ).html( buildOpOptions( ct, 'is' ) );
 		var vw = row.find( '.spgc-val-wrap' );
@@ -333,14 +280,8 @@
 		reindexConditions( card );
 	} );
 
-	/** Add rule — blocked at free limit */
+	/** Add rule */
 	$( '#spgc-add-btn' ).on( 'click', function () {
-		if ( ! IS_PRO && ruleCount() >= FREE_LIMIT ) {
-			// Button should already be disabled, but guard anyway.
-			window.open( UPGRADE_URL, '_blank', 'noopener,noreferrer' );
-			return;
-		}
-
 		$( '#spgc-empty-state' ).remove();
 		var card = $( buildCard( IDX ) );
 		$( '#spgc-rules-list' ).append( card );

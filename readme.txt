@@ -1,10 +1,10 @@
-=== Smart Payment Gateway Control for WooCommerce ===
+=== Smart Payment Gateway Control for WooCommerce Pro ===
 Contributors: fahadkhalid211
 Tags: woocommerce, payment gateway, checkout, conditional, payment methods
 Requires at least: 5.8
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 2.1.1
+Stable tag: 2.2.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -12,7 +12,7 @@ Conditionally hide WooCommerce payment methods at checkout using flexible IF →
 
 == Description ==
 
-Smart Payment Gateway Control for WooCommerce lets you define IF → THEN rules to hide payment gateways at checkout. Rules are evaluated in order and support a wide range of conditions:
+Smart Payment Gateway Control for WooCommerce Pro gives you complete conditional control over which payment gateways appear at checkout. Define flexible IF → THEN rules evaluated in order with support for unlimited rules and all 7 conditions unlocked:
 
 * Product Category — show or hide a gateway based on product categories in the cart
 * Specific Product — target individual products or product variations
@@ -22,13 +22,13 @@ Smart Payment Gateway Control for WooCommerce lets you define IF → THEN rules 
 * Billing Country — restrict payment options by country
 * Order Quantity — apply rules based on total item count in the cart
 
-All rules are managed from a clean admin UI under **WooCommerce → Payment Rules**.
+All rules are managed from a modern admin UI under **WooCommerce → Payment Rules**.
 
 == Installation ==
 
 1. Upload the plugin folder to `/wp-content/plugins/`.
 2. Activate the plugin through the Plugins menu in WordPress.
-3. Go to WooCommerce → Payment Rules to create your first rule.
+3. Go to WooCommerce → Payment Rules to create your rules.
 
 == Frequently Asked Questions ==
 
@@ -39,9 +39,15 @@ Yes, the plugin declares full compatibility with WooCommerce HPOS.
 WooCommerce 6.0 and above.
 
 = Can I have multiple rules? =
-Yes. You can create as many rules as you need. Rules are evaluated in the order they appear.
+Yes. You can create unlimited rules with multi-condition AND logic. Rules are evaluated in the order they appear.
 
 == Changelog ==
+
+= 2.2.0 =
+* Complete rebrand to Pro
+* Removed Freemius locks & external dependencies
+* All 7 condition types and unlimited rules unlocked natively
+* Updated text domain to smart-payment-gateway-control-pro
 
 = 2.0.1 =
 * CSS changes | Better UI

@@ -1,14 +1,13 @@
 <?php
 
 /**
- * Plugin Name: Smart Payment Gateway Control for WooCommerce Yearly
- * Plugin URI:        https://github.com/fahadkhalid211/Smart-Payment-Gateway-Control
+ * Plugin Name: Smart Payment Gateway Control for WooCommerce Pro
+ * Plugin URI:        https://github.com/fahadkhalid211/Smart-Payment-Gateway-Control-Pro
  * Description:       Conditionally disable WooCommerce payment methods based on product, category, cart total, user role, shipping method, country, or order quantity.
- * Version:           2.1.1
- * Update URI: https://api.freemius.com
+ * Version:           2.2.0
  * Author:            Fahad Khalid
  * Author URI:        https://linktr.ee/fahadkhalid211
- * Text Domain:       smart-payment-gateway-control
+ * Text Domain:       smart-payment-gateway-control-pro
  * Domain Path:       /languages
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
@@ -19,83 +18,18 @@
  * WC requires at least: 6.0
  * WC tested up to:   9.9
  *
- * @package SmartPaymentGatewayControl
+ * @package SmartPaymentGatewayControlPro
  */
 if ( !defined( 'ABSPATH' ) ) {
     exit;
 }
-/*
- * ── Freemius auto-deactivation wrapper ───────────────────────────────────────
- *
- * When a user activates the paid version (Pro), Freemius needs to auto-deactivate
- * the free version.  The structure below is exactly what Freemius requires:
- *   • The outer `if ( function_exists( 'spgcfwp_fs' ) )` branch handles the
- *     paid-plugin activation flow (set_basename call).
- *   • The else branch is what runs on a normal free-version install.
- *
- * DO NOT remove or reorder this wrapper — it is required by Freemius.
- * ─────────────────────────────────────────────────────────────────────────── */
-if ( function_exists( 'spgcfwp_fs' ) ) {
-    // Paid version is activating — hand off the basename so Freemius can
-    // deactivate the free version automatically.
-    spgcfwp_fs()->set_basename( true, __FILE__ );
-} else {
-    // ── Freemius SDK init ─────────────────────────────────────────────────────
-    if ( !function_exists( 'spgcfwp_fs' ) ) {
-        /**
-         * Helper function for easy Freemius SDK access throughout the plugin.
-         *
-         * @return Freemius
-         */
-        function spgcfwp_fs() {
-            global $spgcfwp_fs;
-            if ( !isset( $spgcfwp_fs ) ) {
-                // Include Freemius SDK.
-                require_once dirname( __FILE__ ) . '/vendor/freemius/start.php';
-                $spgcfwp_fs = fs_dynamic_init( array(
-                    'id'               => '29427',
-                    'slug'             => 'smart-payment-gateway-control-for-woocommerce',
-                    'premium_slug'     => 'smart-payment-gateway-control-for-woocommerce-pro',
-                    'type'             => 'plugin',
-                    'public_key'       => 'pk_fff70c86bec9797168b61ce913494',
-                    'is_premium'       => true,
-                    'premium_suffix'   => 'Yearly',
-                    'has_addons'       => false,
-                    'has_paid_plans'   => true,
-                    'is_org_compliant' => true,
-                    'trial'            => array(
-                        'days'               => 7,
-                        'is_require_payment' => true,
-                    ),
-                    'menu'             => array(
-                        'slug'    => 'spgc-settings',
-                        'support' => false,
-                        'parent'  => array(
-                            'slug' => 'woocommerce',
-                        ),
-                    ),
-                    'is_live'          => true,
-                ) );
-            }
-            return $spgcfwp_fs;
-        }
-
-        // Init Freemius.
-        spgcfwp_fs();
-        // Signal that SDK was initiated.
-        do_action( 'spgcfwp_fs_loaded' );
-        // ── Uninstall cleanup via Freemius ──────────────────────────────────────
-        /**
-         * Remove plugin data on uninstall.
-         * Hooked to Freemius 'after_uninstall' action so the uninstall event
-         * is properly reported to Freemius servers before data is cleaned up.
-         */
-        function spgc_uninstall_cleanup() {
-            delete_option( 'spgc_rules' );
-        }
-
-        spgcfwp_fs()->add_action( 'after_uninstall', 'spgc_uninstall_cleanup' );
+// ── Uninstall cleanup ─────────────────────────────────────────────────────────
+register_uninstall_hook( __FILE__, 'spgc_uninstall_cleanup' );
+if ( !function_exists( 'spgc_uninstall_cleanup' ) ) {
+    function spgc_uninstall_cleanup() {
+        delete_option( 'spgc_rules' );
     }
+}
     // ── HPOS compatibility ────────────────────────────────────────────────────
     add_action( 'before_woocommerce_init', static function () {
         if ( class_exists( \Automattic\WooCommerce\Utilities\FeaturesUtil::class ) ) {
@@ -113,16 +47,7 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
 
             const NONCE_ACTION = 'spgc_save_rules';
 
-            const VERSION = '2.1.0';
-
-            /**
-             * Free plan limits.
-             * Only 'category' and 'product' condition types are available on the free plan.
-             * Maximum 3 rules on the free plan.
-             */
-            const FREE_RULE_LIMIT = 3;
-
-            const FREE_COND_TYPES = array('category', 'product');
+            const VERSION = '2.2.0';
 
             private static $instance = null;
 
@@ -142,38 +67,21 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
             }
 
             /* =====================================================================
-             * PRO CHECK — via Freemius SDK
+             * PRO CHECK
              * ===================================================================
-             *
-             * spgcfwp_fs()->can_use_premium_code() returns true only when the site
-             * has an active, valid paid licence verified by Freemius.
-             * We wrap it in a try/catch so the plugin degrades gracefully to free
-             * if the SDK is somehow unavailable rather than throwing a fatal error.
+             * Unconditionally returns true — all features are permanently unlocked.
              * =================================================================== */
             public static function is_pro() {
-                try {
-                    return function_exists( 'spgcfwp_fs' ) && spgcfwp_fs()->can_use_premium_code();
-                } catch ( Exception $e ) {
-                    return false;
-                }
+                return true;
             }
 
             /**
-             * Returns the Freemius upgrade URL for this installation.
-             * Every "Upgrade to Pro" button and link in the UI uses this method
-             * so users land on the Freemius checkout — never a hardcoded URL.
+             * Returns the settings URL.
              *
              * @return string
              */
             public static function get_upgrade_url() {
-                try {
-                    if ( function_exists( 'spgcfwp_fs' ) ) {
-                        return spgcfwp_fs()->get_upgrade_url();
-                    }
-                } catch ( Exception $e ) {
-                    // Fall through to fallback.
-                }
-                return admin_url( 'admin.php?page=spgc-settings-pricing' );
+                return admin_url( 'admin.php?page=spgc-settings' );
             }
 
             /* =====================================================================
@@ -182,8 +90,8 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
             public function register_menu() {
                 add_submenu_page(
                     'woocommerce',
-                    esc_html__( 'Payment Rules', 'smart-payment-gateway-control' ),
-                    '<span class="spgc-menu-item"><span class="dashicons dashicons-shield" style="font-size:16px;line-height:1.4;color:#7dd3fc;margin-right:4px;vertical-align:middle"></span>' . esc_html__( 'Payment Rules', 'smart-payment-gateway-control' ) . '</span>',
+                    esc_html__( 'Payment Rules', 'smart-payment-gateway-control-pro' ),
+                    '<span class="spgc-menu-item"><span class="dashicons dashicons-shield" style="font-size:16px;line-height:1.4;color:#7dd3fc;margin-right:4px;vertical-align:middle"></span>' . esc_html__( 'Payment Rules', 'smart-payment-gateway-control-pro' ) . '</span>',
                     'manage_woocommerce',
                     self::MENU_SLUG,
                     array($this, 'render_page')
@@ -379,29 +287,29 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
                     'roles'         => $this->get_role_options(),
                     'countries'     => $this->get_country_options(),
                     'condTypes'     => $this->get_condition_types(),
-                    'freeCondTypes' => self::FREE_COND_TYPES,
-                    'freeRuleLimit' => self::FREE_RULE_LIMIT,
-                    'isPro'         => $is_pro,
+                    'freeCondTypes' => array_keys( $this->get_condition_types() ),
+                    'freeRuleLimit' => 999999,
+                    'isPro'         => true,
                     'upgradeUrl'    => $upgrade_url,
                     'i18n'          => array(
-                        'rule'         => esc_html__( 'Rule', 'smart-payment-gateway-control' ),
-                        'rules'        => esc_html__( 'rules', 'smart-payment-gateway-control' ),
-                        'ifLabel'      => esc_html__( 'If…', 'smart-payment-gateway-control' ),
-                        'operator'     => esc_html__( 'Operator', 'smart-payment-gateway-control' ),
-                        'value'        => esc_html__( 'Value', 'smart-payment-gateway-control' ),
-                        'thenDisable'  => esc_html__( 'Then disable', 'smart-payment-gateway-control' ),
-                        'remove'       => esc_html__( 'Remove rule', 'smart-payment-gateway-control' ),
-                        'removeCond'   => esc_html__( 'Remove condition', 'smart-payment-gateway-control' ),
-                        'andLabel'     => esc_html__( 'AND', 'smart-payment-gateway-control' ),
-                        'addCond'      => esc_html__( 'Add AND Condition', 'smart-payment-gateway-control' ),
-                        'noRules'      => esc_html__( 'No rules yet. Click "Add Rule" to get started.', 'smart-payment-gateway-control' ),
-                        'select'       => esc_html__( '— select —', 'smart-payment-gateway-control' ),
-                        'searchProd'   => esc_html__( 'Search products…', 'smart-payment-gateway-control' ),
-                        'searchShip'   => esc_html__( 'Search shipping methods…', 'smart-payment-gateway-control' ),
-                        'badge'        => esc_html__( 'rules', 'smart-payment-gateway-control' ),
-                        'limitReached' => sprintf( esc_html__( 'Free plan limit reached (%d rules max)', 'smart-payment-gateway-control' ), self::FREE_RULE_LIMIT ),
-                        'upgradeCta'   => esc_html__( 'Upgrade to Pro for unlimited rules &amp; all conditions', 'smart-payment-gateway-control' ),
-                        'proSuffix'    => esc_html__( 'Pro', 'smart-payment-gateway-control' ),
+                        'rule'         => esc_html__( 'Rule', 'smart-payment-gateway-control-pro' ),
+                        'rules'        => esc_html__( 'rules', 'smart-payment-gateway-control-pro' ),
+                        'ifLabel'      => esc_html__( 'If…', 'smart-payment-gateway-control-pro' ),
+                        'operator'     => esc_html__( 'Operator', 'smart-payment-gateway-control-pro' ),
+                        'value'        => esc_html__( 'Value', 'smart-payment-gateway-control-pro' ),
+                        'thenDisable'  => esc_html__( 'Then disable', 'smart-payment-gateway-control-pro' ),
+                        'remove'       => esc_html__( 'Remove rule', 'smart-payment-gateway-control-pro' ),
+                        'removeCond'   => esc_html__( 'Remove condition', 'smart-payment-gateway-control-pro' ),
+                        'andLabel'     => esc_html__( 'AND', 'smart-payment-gateway-control-pro' ),
+                        'addCond'      => esc_html__( 'Add AND Condition', 'smart-payment-gateway-control-pro' ),
+                        'noRules'      => esc_html__( 'No rules yet. Click "Add Rule" to get started.', 'smart-payment-gateway-control-pro' ),
+                        'select'       => esc_html__( '— select —', 'smart-payment-gateway-control-pro' ),
+                        'searchProd'   => esc_html__( 'Search products…', 'smart-payment-gateway-control-pro' ),
+                        'searchShip'   => esc_html__( 'Search shipping methods…', 'smart-payment-gateway-control-pro' ),
+                        'badge'        => esc_html__( 'rules', 'smart-payment-gateway-control-pro' ),
+                        'limitReached' => '',
+                        'upgradeCta'   => '',
+                        'proSuffix'    => '',
                     ),
                 ) ) . ';';
                 wp_enqueue_script(
@@ -464,7 +372,7 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
                 foreach ( $z0->get_shipping_methods( true ) as $inst ) {
                     $methods[] = array(
                         'id'   => $inst->get_rate_id(),
-                        'text' => esc_html__( 'Rest of World', 'smart-payment-gateway-control' ) . ' — ' . $inst->get_title(),
+                        'text' => esc_html__( 'Rest of World', 'smart-payment-gateway-control-pro' ) . ' — ' . $inst->get_title(),
                     );
                 }
                 wp_send_json( array(
@@ -477,18 +385,18 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
              * =================================================================== */
             public function render_page() {
                 if ( !current_user_can( 'manage_woocommerce' ) ) {
-                    wp_die( esc_html__( 'No permission.', 'smart-payment-gateway-control' ) );
+                    wp_die( esc_html__( 'No permission.', 'smart-payment-gateway-control-pro' ) );
                 }
                 $saved = false;
                 if ( isset( $_POST[self::NONCE_NAME] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST[self::NONCE_NAME] ) ), self::NONCE_ACTION ) ) {
                     $this->save_rules();
                     $saved = true;
                 }
-                $is_pro = self::is_pro();
+                $is_pro = true;
                 $upgrade_url = self::get_upgrade_url();
                 $rules = $this->get_rules();
                 $rule_count = count( $rules );
-                $at_limit = !$is_pro && $rule_count >= self::FREE_RULE_LIMIT;
+                $at_limit = false;
                 $gateways = $this->get_gateway_options();
                 $categories = $this->get_category_options();
                 $roles = $this->get_role_options();
@@ -513,10 +421,10 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
 						</div>
 						<div class="spgc-hero-text">
 							<h1><?php 
-                esc_html_e( 'Smart Payment Gateway Control', 'smart-payment-gateway-control' );
+                esc_html_e( 'Smart Payment Gateway Control', 'smart-payment-gateway-control-pro' );
                 ?></h1>
 							<p><?php 
-                esc_html_e( 'Hide payment methods at checkout using flexible IF &#8594; THEN rules. Rules are evaluated in order — full control, zero code.', 'smart-payment-gateway-control' );
+                esc_html_e( 'Hide payment methods at checkout using flexible IF &#8594; THEN rules. Rules are evaluated in order — full control, zero code.', 'smart-payment-gateway-control-pro' );
                 ?></p>
 						</div>
 					</div>
@@ -526,13 +434,13 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
                 echo esc_html( $rule_count );
                 ?></span>
 							<span class="spgc-stat-lbl"><?php 
-                esc_html_e( 'Active Rules', 'smart-payment-gateway-control' );
+                esc_html_e( 'Active Rules', 'smart-payment-gateway-control-pro' );
                 ?></span>
 						</div>
 						<div class="spgc-stat">
 							<span class="spgc-stat-num">7</span>
 							<span class="spgc-stat-lbl"><?php 
-                esc_html_e( 'Condition Types', 'smart-payment-gateway-control' );
+                esc_html_e( 'Condition Types', 'smart-payment-gateway-control-pro' );
                 ?></span>
 						</div>
 					</div>
@@ -544,7 +452,7 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
 				<div class="spgc-notice">
 					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
 					<?php 
-                    esc_html_e( 'Rules saved successfully.', 'smart-payment-gateway-control' );
+                    esc_html_e( 'Rules saved successfully.', 'smart-payment-gateway-control-pro' );
                     ?>
 				</div>
 				<?php 
@@ -561,48 +469,17 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
                 wp_nonce_field( self::NONCE_ACTION, self::NONCE_NAME );
                 ?>
 
-							<?php 
-                if ( $at_limit ) {
-                    ?>
-							<div class="spgc-limit-banner">
-								<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-								<div class="spgc-limit-banner-text">
-									<strong>
-										<?php 
-                    printf( 
-                        /* translators: 1: current count  2: limit */
-                        esc_html__( 'Free plan limit reached (%1$d / %2$d rules)', 'smart-payment-gateway-control' ),
-                        esc_html( $rule_count ),
-                        esc_html( self::FREE_RULE_LIMIT )
-                     );
-                    ?>
-									</strong>
-									<span><?php 
-                    esc_html_e( 'Upgrade to Pro for unlimited rules and all 7 condition types.', 'smart-payment-gateway-control' );
-                    ?></span>
-								</div>
-								<a href="<?php 
-                    echo esc_url( $upgrade_url );
-                    ?>">
-									<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-									<?php 
-                    esc_html_e( 'Upgrade to Pro', 'smart-payment-gateway-control' );
-                    ?>
-								</a>
-							</div>
-							<?php 
-                }
-                ?>
+
 
 							<div class="spgc-section-header">
 								<h2 class="spgc-section-title">
 									<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
 									<?php 
-                esc_html_e( 'Payment Rules', 'smart-payment-gateway-control' );
+                esc_html_e( 'Payment Rules', 'smart-payment-gateway-control-pro' );
                 ?>
 									<span class="spgc-badge" id="spgc-badge">
 										<?php 
-                echo esc_html( $rule_count . ' ' . __( 'rules', 'smart-payment-gateway-control' ) );
+                echo esc_html( $rule_count . ' ' . __( 'rules', 'smart-payment-gateway-control-pro' ) );
                 ?>
 									</span>
 								</h2>
@@ -615,7 +492,7 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
 									<div class="spgc-empty" id="spgc-empty-state">
 										<svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#c0cfe8" stroke-width="1.5"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
 										<p><?php 
-                    esc_html_e( 'No rules yet. Click "Add Rule" to get started.', 'smart-payment-gateway-control' );
+                    esc_html_e( 'No rules yet. Click "Add Rule" to get started.', 'smart-payment-gateway-control-pro' );
                     ?></p>
 									</div>
 								<?php 
@@ -644,38 +521,18 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
 							</div>
 
 							<div class="spgc-toolbar">
-								<button type="button" id="spgc-add-btn"
-									class="spgc-btn spgc-btn-outline<?php 
-                echo ( $at_limit ? ' is-disabled' : '' );
-                ?>"
-									<?php 
-                echo ( $at_limit ? 'disabled' : '' );
-                ?>>
+								<button type="button" id="spgc-add-btn" class="spgc-btn spgc-btn-outline">
 									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
 									<?php 
-                esc_html_e( 'Add Rule', 'smart-payment-gateway-control' );
+                esc_html_e( 'Add Rule', 'smart-payment-gateway-control-pro' );
                 ?>
 								</button>
 								<button type="submit" class="spgc-btn spgc-btn-primary">
 									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
 									<?php 
-                esc_html_e( 'Save Rules', 'smart-payment-gateway-control' );
+                esc_html_e( 'Save Rules', 'smart-payment-gateway-control-pro' );
                 ?>
 								</button>
-								<?php 
-                if ( $at_limit ) {
-                    ?>
-								<a href="<?php 
-                    echo esc_url( $upgrade_url );
-                    ?>" class="spgc-btn spgc-btn-upgrade">
-									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-									<?php 
-                    esc_html_e( 'Upgrade to Pro', 'smart-payment-gateway-control' );
-                    ?>
-								</a>
-								<?php 
-                }
-                ?>
 							</div>
 						</form>
 					</div><!-- .spgc-main -->
@@ -688,103 +545,34 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
 								<h3>
 									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7dd3fc" stroke-width="2.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
 									<?php 
-                esc_html_e( 'Features', 'smart-payment-gateway-control' );
+                esc_html_e( 'Features & Analytics', 'smart-payment-gateway-control-pro' );
                 ?>
 								</h3>
 								<p>
 									<?php 
-                if ( $is_pro ) {
-                    ?>
-										<?php 
-                    esc_html_e( 'All Pro features are active on your account.', 'smart-payment-gateway-control' );
-                    ?>
-									<?php 
-                } else {
-                    ?>
-										<?php 
-                    printf( 
-                        /* translators: %d = max free rules */
-                        esc_html__( 'Free plan: up to %d rules, 2 condition types.', 'smart-payment-gateway-control' ),
-                        self::FREE_RULE_LIMIT
-                     );
-                    ?>
-									<?php 
-                }
+                esc_html_e( 'All features active — unlimited rules & all 7 conditions.', 'smart-payment-gateway-control-pro' );
                 ?>
 								</p>
 							</div>
 
 							<div class="spgc-features-list">
 
-								<!-- FREE features -->
-								<div class="spgc-feat-divider"><?php 
-                esc_html_e( 'Included — Free', 'smart-payment-gateway-control' );
-                ?></div>
-
-								<div class="spgc-feature-item">
-									<div class="spgc-feature-icon c1">
-										<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7dd3fc" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-									</div>
-									<div class="spgc-feature-info">
-										<strong><?php 
-                esc_html_e( 'Product Category', 'smart-payment-gateway-control' );
-                ?></strong>
-										<span><?php 
-                esc_html_e( 'Trigger by category — sub-categories included', 'smart-payment-gateway-control' );
-                ?></span>
-									</div>
-									<div class="spgc-feature-badge"><span class="spgc-plan-pill free"><?php 
-                esc_html_e( 'Free', 'smart-payment-gateway-control' );
-                ?></span></div>
-								</div>
-
-								<div class="spgc-feature-item">
-									<div class="spgc-feature-icon c2">
-										<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6ee7b7" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-									</div>
-									<div class="spgc-feature-info">
-										<strong><?php 
-                esc_html_e( 'Specific Product', 'smart-payment-gateway-control' );
-                ?></strong>
-										<span><?php 
-                esc_html_e( 'Target individual products or variations', 'smart-payment-gateway-control' );
-                ?></span>
-									</div>
-									<div class="spgc-feature-badge"><span class="spgc-plan-pill free"><?php 
-                esc_html_e( 'Free', 'smart-payment-gateway-control' );
-                ?></span></div>
-								</div>
-
-								<div class="spgc-feature-item">
-									<div class="spgc-feature-icon c8">
-										<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7dd3fc" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-									</div>
-									<div class="spgc-feature-info">
-										<strong>
-											<?php 
-                printf( 
-                    /* translators: %d = rule limit */
-                    esc_html__( 'Up to %d Rules', 'smart-payment-gateway-control' ),
-                    self::FREE_RULE_LIMIT
-                 );
-                ?>
-										</strong>
-										<span><?php 
-                esc_html_e( 'Create up to 3 active payment rules', 'smart-payment-gateway-control' );
-                ?></span>
-									</div>
-									<div class="spgc-feature-badge"><span class="spgc-plan-pill free"><?php 
-                esc_html_e( 'Free', 'smart-payment-gateway-control' );
-                ?></span></div>
-								</div>
-
-								<!-- PRO features -->
-								<div class="spgc-feat-divider" style="margin-top:6px;"><?php 
-                esc_html_e( 'Upgrade — Pro', 'smart-payment-gateway-control' );
-                ?></div>
-
 								<?php 
-                $pro_features = array(
+                $all_features = array(
+                    array(
+                        'c1',
+                        '#7dd3fc',
+                        '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+                        'Product Category',
+                        'Trigger by category — sub-categories included'
+                    ),
+                    array(
+                        'c2',
+                        '#6ee7b7',
+                        '<path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>',
+                        'Specific Product',
+                        'Target individual products or variations'
+                    ),
                     array(
                         'c3',
                         '#fcd34d',
@@ -821,19 +609,16 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
                         'Apply rules based on total item count'
                     ),
                     array(
-                        'c1',
+                        'c8',
                         '#7dd3fc',
                         '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
                         'Unlimited Rules',
                         'No cap — create as many rules as you need'
                     )
                 );
-                foreach ( $pro_features as $f ) {
-                    $dimmed = ( $is_pro ? '' : ' is-pro-item' );
+                foreach ( $all_features as $f ) {
                     ?>
-								<div class="spgc-feature-item<?php 
-                    echo esc_attr( $dimmed );
-                    ?>">
+								<div class="spgc-feature-item">
 									<div class="spgc-feature-icon <?php 
                     echo esc_attr( $f[0] );
                     ?>">
@@ -846,14 +631,14 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
 									</div>
 									<div class="spgc-feature-info">
 										<strong><?php 
-                    echo esc_html( __( $f[3], 'smart-payment-gateway-control' ) );
+                    echo esc_html( __( $f[3], 'smart-payment-gateway-control-pro' ) );
                     ?></strong>
 										<span><?php 
-                    echo esc_html( __( $f[4], 'smart-payment-gateway-control' ) );
+                    echo esc_html( __( $f[4], 'smart-payment-gateway-control-pro' ) );
                     ?></span>
 									</div>
 									<div class="spgc-feature-badge"><span class="spgc-plan-pill pro"><?php 
-                    esc_html_e( 'Pro', 'smart-payment-gateway-control' );
+                    esc_html_e( 'Pro', 'smart-payment-gateway-control-pro' );
                     ?></span></div>
 								</div>
 								<?php 
@@ -862,41 +647,13 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
 
 							</div><!-- .spgc-features-list -->
 
-							<?php 
-                if ( $is_pro ) {
-                    ?>
 							<!-- Pro active state -->
 							<div class="spgc-pro-active">
 								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
 								<span><?php 
-                    esc_html_e( 'Pro license active — all features unlocked', 'smart-payment-gateway-control' );
+                    esc_html_e( 'Pro version active — all features unlocked', 'smart-payment-gateway-control-pro' );
                     ?></span>
 							</div>
-							<?php 
-                } else {
-                    ?>
-							<!-- Upgrade CTA — href points to Freemius checkout via get_upgrade_url() -->
-							<div class="spgc-upgrade-cta">
-								<a href="<?php 
-                    echo esc_url( $upgrade_url );
-                    ?>" class="spgc-upgrade-btn">
-									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-									<?php 
-                    esc_html_e( 'Upgrade to Pro', 'smart-payment-gateway-control' );
-                    ?>
-								</a>
-								<p class="spgc-upgrade-note"><?php 
-                    esc_html_e( 'Unlock all 7 conditions &amp; unlimited rules', 'smart-payment-gateway-control' );
-                    ?></p>
-							</div>
-							<div class="spgc-trial-note">
-								<p><?php 
-                    esc_html_e( '7-day trial available — payment required to start.', 'smart-payment-gateway-control' );
-                    ?></p>
-							</div>
-							<?php 
-                }
-                ?>
 
 						</div><!-- .spgc-features-card -->
 					</div><!-- .spgc-sidebar -->
@@ -938,13 +695,13 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
 						<?php 
                 echo esc_html( sprintf( 
                     /* translators: %d: rule number */
-                    __( 'Rule #%d', 'smart-payment-gateway-control' ),
+                    __( 'Rule #%d', 'smart-payment-gateway-control-pro' ),
                     (int) $i + 1
                  ) );
                 ?>
 					</span>
 					<button type="button" class="spgc-remove" title="<?php 
-                esc_attr_e( 'Remove rule', 'smart-payment-gateway-control' );
+                esc_attr_e( 'Remove rule', 'smart-payment-gateway-control-pro' );
                 ?>">
 						<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
 					</button>
@@ -966,7 +723,7 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
                         ?>
 								<div class="spgc-and-separator">
 									<span><?php 
-                        esc_html_e( 'AND', 'smart-payment-gateway-control' );
+                        esc_html_e( 'AND', 'smart-payment-gateway-control-pro' );
                         ?></span>
 								</div>
 							<?php 
@@ -982,16 +739,13 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
 								<div class="spgc-rule-grid">
 									<div class="spgc-field">
 										<label><?php 
-                    esc_html_e( 'If&#8230;', 'smart-payment-gateway-control' );
+                    esc_html_e( 'If&#8230;', 'smart-payment-gateway-control-pro' );
                     ?></label>
 										<select name="<?php 
                     echo esc_attr( 'spgc_rules[' . (int) $i . '][conditions][' . (int) $ci . '][condition_type]' );
                     ?>" class="spgc-ct">
 											<?php 
                     foreach ( $cond_types as $key => $label ) {
-                        $is_free_type = in_array( $key, self::FREE_COND_TYPES, true );
-                        $locked = !$is_pro && !$is_free_type;
-                        $option_label = ( $locked ? $label . ' — ' . esc_html__( 'Pro', 'smart-payment-gateway-control' ) : $label );
                         ?>
 												<option value="<?php 
                         echo esc_attr( $key );
@@ -999,11 +753,8 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
 													<?php 
                         selected( $ct, $key );
                         ?>
-													<?php 
-                        echo ( $locked ? 'disabled class="is-pro-opt"' : '' );
-                        ?>
 												><?php 
-                        echo esc_html( $option_label );
+                        echo esc_html( $label );
                         ?></option>
 											<?php 
                     }
@@ -1012,7 +763,7 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
 									</div>
 									<div class="spgc-field">
 										<label><?php 
-                    esc_html_e( 'Operator', 'smart-payment-gateway-control' );
+                    esc_html_e( 'Operator', 'smart-payment-gateway-control-pro' );
                     ?></label>
 										<select name="<?php 
                     echo esc_attr( 'spgc_rules[' . (int) $i . '][conditions][' . (int) $ci . '][operator]' );
@@ -1036,7 +787,7 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
 									</div>
 									<div class="spgc-field spgc-val-wrap">
 										<label><?php 
-                    esc_html_e( 'Value', 'smart-payment-gateway-control' );
+                    esc_html_e( 'Value', 'smart-payment-gateway-control-pro' );
                     ?></label>
 										<?php 
                     $this->render_value_input(
@@ -1055,7 +806,7 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
                         ?>
 										<div class="spgc-field" style="justify-content:flex-end">
 											<button type="button" class="spgc-remove-cond" title="<?php 
-                        esc_attr_e( 'Remove condition', 'smart-payment-gateway-control' );
+                        esc_attr_e( 'Remove condition', 'smart-payment-gateway-control-pro' );
                         ?>">
 												<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
 											</button>
@@ -1079,7 +830,7 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
                 ?>">
 						<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
 						<?php 
-                esc_html_e( 'Add AND Condition', 'smart-payment-gateway-control' );
+                esc_html_e( 'Add AND Condition', 'smart-payment-gateway-control-pro' );
                 ?>
 					</button>
 				</div>
@@ -1092,14 +843,14 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
 						<div class="spgc-then-label">
 							<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 8 13.5 16.5 8 11 2 17"/><polyline points="16 8 22 8 22 14"/></svg>
 							<?php 
-                esc_html_e( 'Then disable', 'smart-payment-gateway-control' );
+                esc_html_e( 'Then disable', 'smart-payment-gateway-control-pro' );
                 ?>
 						</div>
 						<select name="<?php 
                 echo esc_attr( 'spgc_rules[' . (int) $i . '][gateway]' );
                 ?>">
 							<option value=""><?php 
-                esc_html_e( '&#8212; select gateway &#8212;', 'smart-payment-gateway-control' );
+                esc_html_e( '&#8212; select gateway &#8212;', 'smart-payment-gateway-control-pro' );
                 ?></option>
 							<?php 
                 foreach ( $gateways as $gid => $gtitle ) {
@@ -1217,10 +968,6 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
                     if ( !is_array( $row ) ) {
                         continue;
                     }
-                    // Server-side rule cap — cannot be bypassed by disabling JS.
-                    if ( !$is_pro && $rule_count >= self::FREE_RULE_LIMIT ) {
-                        break;
-                    }
                     $gw = sanitize_key( ( isset( $row['gateway'] ) ? $row['gateway'] : '' ) );
                     if ( !$gw ) {
                         continue;
@@ -1241,10 +988,6 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
                         $ct = sanitize_key( ( isset( $cond['condition_type'] ) ? $cond['condition_type'] : '' ) );
                         $op = sanitize_key( ( isset( $cond['operator'] ) ? $cond['operator'] : 'is' ) );
                         if ( !in_array( $ct, $allowed_types, true ) || !in_array( $op, $allowed_ops, true ) ) {
-                            continue;
-                        }
-                        // Server-side condition-type restriction — silently drop Pro-only types for free users.
-                        if ( !$is_pro && !in_array( $ct, self::FREE_COND_TYPES, true ) ) {
                             continue;
                         }
                         $value = $this->sanitize_value( $ct, ( isset( $cond['value'] ) ? $cond['value'] : '' ) );
@@ -1305,29 +1048,13 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
                 if ( !function_exists( 'WC' ) || !WC()->cart ) {
                     return $available_gateways;
                 }
-                $is_pro = self::is_pro();
                 $rules = $this->get_rules();
                 foreach ( $rules as $rule ) {
-                    // Skip rules using Pro-only conditions when not licensed.
-                    if ( !$is_pro && $this->rule_requires_pro( $rule ) ) {
-                        continue;
-                    }
                     if ( isset( $available_gateways[$rule['gateway']] ) && $this->evaluate( $rule ) ) {
                         unset($available_gateways[$rule['gateway']]);
                     }
                 }
                 return $available_gateways;
-            }
-
-            private function rule_requires_pro( $rule ) {
-                $conditions = ( isset( $rule['conditions'] ) ? (array) $rule['conditions'] : array() );
-                foreach ( $conditions as $cond ) {
-                    $ct = ( isset( $cond['condition_type'] ) ? $cond['condition_type'] : '' );
-                    if ( !in_array( $ct, self::FREE_COND_TYPES, true ) ) {
-                        return true;
-                    }
-                }
-                return false;
             }
 
             private function evaluate( $rule ) {
@@ -1496,7 +1223,7 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
             private function get_role_options() {
                 global $wp_roles;
                 $out = array(
-                    'guest' => esc_html__( 'Guest (not logged in)', 'smart-payment-gateway-control' ),
+                    'guest' => esc_html__( 'Guest (not logged in)', 'smart-payment-gateway-control-pro' ),
                 );
                 foreach ( $wp_roles->roles as $slug => $data ) {
                     $out[$slug] = translate_user_role( $data['name'] );
@@ -1510,13 +1237,13 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
 
             private function get_condition_types() {
                 return array(
-                    'category'        => esc_html__( 'Product Category', 'smart-payment-gateway-control' ),
-                    'product'         => esc_html__( 'Specific Product', 'smart-payment-gateway-control' ),
-                    'cart_total'      => esc_html__( 'Cart Total', 'smart-payment-gateway-control' ),
-                    'user_role'       => esc_html__( 'User Role', 'smart-payment-gateway-control' ),
-                    'shipping_method' => esc_html__( 'Shipping Method', 'smart-payment-gateway-control' ),
-                    'country'         => esc_html__( 'Billing Country', 'smart-payment-gateway-control' ),
-                    'quantity'        => esc_html__( 'Order Quantity', 'smart-payment-gateway-control' ),
+                    'category'        => esc_html__( 'Product Category', 'smart-payment-gateway-control-pro' ),
+                    'product'         => esc_html__( 'Specific Product', 'smart-payment-gateway-control-pro' ),
+                    'cart_total'      => esc_html__( 'Cart Total', 'smart-payment-gateway-control-pro' ),
+                    'user_role'       => esc_html__( 'User Role', 'smart-payment-gateway-control-pro' ),
+                    'shipping_method' => esc_html__( 'Shipping Method', 'smart-payment-gateway-control-pro' ),
+                    'country'         => esc_html__( 'Billing Country', 'smart-payment-gateway-control-pro' ),
+                    'quantity'        => esc_html__( 'Order Quantity', 'smart-payment-gateway-control-pro' ),
                 );
             }
 
@@ -1548,8 +1275,8 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
 
             private function get_operator_labels() {
                 return array(
-                    'is'     => esc_html__( 'is', 'smart-payment-gateway-control' ),
-                    'is_not' => esc_html__( 'is not', 'smart-payment-gateway-control' ),
+                    'is'     => esc_html__( 'is', 'smart-payment-gateway-control-pro' ),
+                    'is_not' => esc_html__( 'is not', 'smart-payment-gateway-control-pro' ),
                     'gt'     => '>',
                     'gte'    => '>=',
                     'lt'     => '<',
@@ -1565,7 +1292,7 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
         if ( !defined( 'WC_VERSION' ) ) {
             add_action( 'admin_notices', static function () {
                 echo '<div class="notice notice-error"><p>';
-                echo esc_html__( 'Smart Payment Gateway Control for WooCommerce requires WooCommerce to be installed and active.', 'smart-payment-gateway-control' );
+                echo esc_html__( 'Smart Payment Gateway Control for WooCommerce requires WooCommerce to be installed and active.', 'smart-payment-gateway-control-pro' );
                 echo '</p></div>';
             } );
             return;
@@ -1574,9 +1301,7 @@ if ( function_exists( 'spgcfwp_fs' ) ) {
     }, 20 );
     // Add Settings link on Plugins page.
     add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), function ( $links ) {
-        $settings_link = '<a href="' . esc_url( admin_url( 'admin.php?page=spgc-settings' ) ) . '">' . esc_html__( 'Settings', 'smart-payment-gateway-control' ) . '</a>';
+        $settings_link = '<a href="' . esc_url( admin_url( 'admin.php?page=spgc-settings' ) ) . '">' . esc_html__( 'Settings', 'smart-payment-gateway-control-pro' ) . '</a>';
         array_unshift( $links, $settings_link );
         return $links;
     } );
-}
-// end else (Freemius auto-deactivation wrapper)
