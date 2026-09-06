@@ -1,6 +1,6 @@
-=== Smart Payment Gateway Control for WooCommerce Pro ===
+=== Gateway Conditioner for WooCommerce ===
 Contributors: fahadkhalid211
-Tags: woocommerce, payment gateway, checkout, conditional, payment methods
+Tags: woocommerce, payment gateway, checkout, conditional, payment methods, gateway conditioner
 Requires at least: 5.8
 Tested up to: 6.9
 Requires PHP: 7.4
@@ -8,11 +8,11 @@ Stable tag: 2.2.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Conditionally hide WooCommerce payment methods at checkout using flexible IF → THEN rules based on product, cart, user, country, and more.
+Conditionally filter and control WooCommerce payment gateways at checkout using flexible IF → THEN rules based on product, cart, user, country, and more.
 
 == Description ==
 
-Smart Payment Gateway Control for WooCommerce Pro gives you complete conditional control over which payment gateways appear at checkout. Define flexible IF → THEN rules evaluated in order with support for unlimited rules and all 7 conditions unlocked:
+Gateway Conditioner for WooCommerce gives you complete conditional control over which payment gateways appear at checkout. Define flexible IF → THEN rules evaluated in order with support for unlimited rules and 7 condition types:
 
 * Product Category — show or hide a gateway based on product categories in the cart
 * Specific Product — target individual products or product variations
@@ -44,10 +44,10 @@ Yes. You can create unlimited rules with multi-condition AND logic. Rules are ev
 == Changelog ==
 
 = 2.2.0 =
-* Complete rebrand to Pro
-* Removed Freemius locks & external dependencies
-* All 7 condition types and unlimited rules unlocked natively
-* Updated text domain to smart-payment-gateway-control-pro
+* Complete rebrand to Gateway Conditioner for WooCommerce
+* Clean standalone architecture with zero external licensing dependencies
+* All 7 condition types and unlimited rules available natively
+* Updated text domain to gateway-conditioner-for-woocommerce
 
 = 2.0.1 =
 * CSS changes | Better UI

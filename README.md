@@ -1,7 +1,7 @@
-# Smart Payment Gateway Control for WooCommerce Pro
+# Gateway Conditioner for WooCommerce
 Conditionally disable WooCommerce payment methods based on product, category, cart total, user role, shipping method, country, or order quantity.
 
-Smart Payment Gateway Control Pro gives store owners complete, unrestricted control over which payment methods appear at checkout by letting you build powerful IF → THEN rules with all 7 condition types and unlimited rules unlocked natively.
+Gateway Conditioner for WooCommerce gives store owners complete, fine-grained control over which payment methods appear at checkout by letting you build flexible IF → THEN rules with all 7 condition types and unlimited rules.
 
 = Supported Conditions =
 * **Product Category** — hide a gateway when the cart contains a product from a specific category (sub-categories included automatically).
