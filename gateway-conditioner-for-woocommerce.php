@@ -1,8 +1,7 @@
 <?php
-
 /**
- * Plugin Name: Gateway Conditioner for WooCommerce
- * Plugin URI:        https://github.com/fahadkhalid211/Smart-Payment-Gateway-Control-Pro
+ * Plugin Name:       Gateway Conditioner for WooCommerce
+ * Plugin URI:        https://github.com/fahadkhalid211/Gateway-conditioner-for-WooCommerce
  * Description:       Conditionally disable WooCommerce payment methods based on product, category, cart total, user role, shipping method, country, or order quantity.
  * Version:           2.2.0
  * Author:            Fahad Khalid
@@ -13,398 +12,382 @@
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Requires at least: 5.8
  * Requires PHP:      7.4
- * Tested up to:      6.9
+ * Tested up to:      7.1
  * Requires Plugins:  woocommerce
  * WC requires at least: 6.0
  * WC tested up to:   9.9
  *
  * @package GatewayConditionerForWooCommerce
  */
-if ( !defined( 'ABSPATH' ) ) {
-    exit;
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
-// ── Uninstall cleanup ─────────────────────────────────────────────────────────
-register_uninstall_hook( __FILE__, 'gcw_uninstall_cleanup' );
-if ( !function_exists( 'gcw_uninstall_cleanup' ) ) {
-    function gcw_uninstall_cleanup() {
-        delete_option( 'gcw_rules' );
-    }
-}
-    // ── HPOS compatibility ────────────────────────────────────────────────────
-    add_action( 'before_woocommerce_init', static function () {
-        if ( class_exists( \Automattic\WooCommerce\Utilities\FeaturesUtil::class ) ) {
-            \Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', __FILE__, true );
-        }
-    } );
-    // ── Main plugin class ─────────────────────────────────────────────────────
-    if ( !class_exists( 'GCW_Plugin' ) ) {
-        final class GCW_Plugin {
-            const OPTION_KEY = 'gcw_rules';
 
-            const MENU_SLUG = 'gcw-settings';
+// ── HPOS & Checkout Blocks Compatibility ─────────────────────────────────────
+add_action( 'before_woocommerce_init', static function () {
+	if ( class_exists( \Automattic\WooCommerce\Utilities\FeaturesUtil::class ) ) {
+		\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', __FILE__, true );
+		\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'cart_checkout_blocks', __FILE__, true );
+	}
+} );
 
-            const NONCE_NAME = 'gcw_nonce';
+// ── Main Plugin Class ────────────────────────────────────────────────────────
+if ( ! class_exists( 'GCW_Plugin' ) ) {
 
-            const NONCE_ACTION = 'gcw_save_rules';
+	final class GCW_Plugin {
 
-            const VERSION = '2.2.0';
+		const OPTION_KEY   = 'gcw_rules';
+		const MENU_SLUG    = 'gcw-settings';
+		const NONCE_NAME   = 'gcw_nonce';
+		const NONCE_ACTION = 'gcw_save_rules';
+		const VERSION      = '2.2.0';
 
-            private static $instance = null;
+		private static $instance = null;
 
-            public static function get_instance() {
-                if ( null === self::$instance ) {
-                    self::$instance = new self();
-                }
-                return self::$instance;
-            }
+		/**
+		 * Runtime memoization cache for product category slugs in the cart.
+		 *
+		 * @var array
+		 */
+		private $cat_slugs_cache = array();
 
-            private function __construct() {
-                add_action( 'admin_menu', array($this, 'register_menu') );
-                add_action( 'admin_enqueue_scripts', array($this, 'enqueue_assets') );
-                add_filter( 'woocommerce_available_payment_gateways', array($this, 'filter_gateways') );
-                add_action( 'wp_ajax_gcw_search_products', array($this, 'ajax_products') );
-                add_action( 'wp_ajax_gcw_search_shipping', array($this, 'ajax_shipping') );
-            }
+		public static function get_instance() {
+			if ( null === self::$instance ) {
+				self::$instance = new self();
+			}
+			return self::$instance;
+		}
 
-            /* =====================================================================
-             * PRO CHECK
-             * ===================================================================
-             * Unconditionally returns true — all features are permanently unlocked.
-             * =================================================================== */
-            public static function is_pro() {
-                return true;
-            }
+		private function __construct() {
+			add_action( 'admin_init', array( $this, 'process_save_rules' ) );
+			add_action( 'admin_menu', array( $this, 'register_menu' ) );
+			add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
+			add_filter( 'woocommerce_available_payment_gateways', array( $this, 'filter_gateways' ) );
+			add_action( 'wp_ajax_gcw_search_products', array( $this, 'ajax_products' ) );
+			add_action( 'wp_ajax_gcw_search_shipping', array( $this, 'ajax_shipping' ) );
+		}
 
-            /**
-             * Returns the settings URL.
-             *
-             * @return string
-             */
-            public static function get_upgrade_url() {
-                return admin_url( 'admin.php?page=gcw-settings' );
-            }
+		/* =====================================================================
+		 * MENU & ASSETS
+		 * =================================================================== */
 
-            /* =====================================================================
-             * MENU & ASSETS
-             * =================================================================== */
-            public function register_menu() {
-                add_submenu_page(
-                    'woocommerce',
-                    esc_html__( 'Payment Rules', 'gateway-conditioner-for-woocommerce' ),
-                    '<span class="gcw-menu-item"><span class="dashicons dashicons-shield" style="font-size:16px;line-height:1.4;color:#7dd3fc;margin-right:4px;vertical-align:middle"></span>' . esc_html__( 'Payment Rules', 'gateway-conditioner-for-woocommerce' ) . '</span>',
-                    'manage_woocommerce',
-                    self::MENU_SLUG,
-                    array($this, 'render_page')
-                );
-            }
+		public function register_menu() {
+			add_submenu_page(
+				'woocommerce',
+				esc_html__( 'Payment Rules', 'gateway-conditioner-for-woocommerce' ),
+				'<span class="gcw-menu-item"><span class="dashicons dashicons-shield" style="font-size:16px;line-height:1.4;color:#7dd3fc;margin-right:4px;vertical-align:middle"></span>' . esc_html__( 'Payment Rules', 'gateway-conditioner-for-woocommerce' ) . '</span>',
+				'manage_woocommerce',
+				self::MENU_SLUG,
+				array( $this, 'render_page' )
+			);
+		}
 
-            public function enqueue_assets( $hook ) {
-                if ( 'woocommerce_page_' . self::MENU_SLUG !== $hook ) {
-                    return;
-                }
-                wp_enqueue_script( 'select2' );
-                wp_enqueue_script( 'jquery' );
-                wp_enqueue_style(
-                    'gcw-admin',
-                    plugin_dir_url( __FILE__ ) . 'css/gcw-admin.css',
-                    array(),
-                    self::VERSION
-                );
-                $css = '
-			/* ── Reset & base ─────────────────────────── */
-			#gcw-wrap *{box-sizing:border-box}
-			#gcw-wrap{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+		public function enqueue_assets( $hook ) {
+			if ( 'woocommerce_page_' . self::MENU_SLUG !== $hook ) {
+				return;
+			}
 
-			/* ── Layout shell ─────────────────────────── */
-			#gcw-outer{max-width:1200px;padding:0 0 40px}
-			.gcw-layout{display:grid;grid-template-columns:1fr 300px;gap:24px;align-items:start}
-			@media(max-width:1024px){.gcw-layout{grid-template-columns:1fr}}
+			// Enqueue Select2 or WooCommerce selectWoo.
+			if ( wp_script_is( 'selectWoo', 'registered' ) ) {
+				wp_enqueue_script( 'selectWoo' );
+				wp_enqueue_style( 'select2' );
+			} else {
+				wp_enqueue_script( 'select2' );
+				wp_enqueue_style( 'select2' );
+			}
 
-			/* ── Hero banner ──────────────────────────── */
-			.gcw-hero{background:linear-gradient(135deg,#0f2554 0%,#1a3a7a 60%,#1e4799 100%);border-radius:16px;padding:28px 32px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;position:relative;overflow:hidden}
-			.gcw-hero::before{content:"";position:absolute;top:-40px;right:-40px;width:200px;height:200px;background:rgba(255,255,255,.04);border-radius:50%}
-			.gcw-hero::after{content:"";position:absolute;bottom:-60px;right:60px;width:140px;height:140px;background:rgba(255,255,255,.03);border-radius:50%}
-			.gcw-hero-left{display:flex;align-items:center;gap:18px;position:relative;z-index:1}
-			.gcw-hero-icon{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:14px;width:56px;height:56px;display:flex;align-items:center;justify-content:center;flex-shrink:0;backdrop-filter:blur(4px)}
-			.gcw-hero-text h1{margin:0 0 4px;font-size:1.45rem;font-weight:800;color:#fff;letter-spacing:-.01em}
-			.gcw-hero-text p{margin:0;font-size:.825rem;color:rgba(255,255,255,.65);max-width:440px;line-height:1.5}
-			.gcw-hero-right{display:flex;align-items:center;gap:12px;position:relative;z-index:1;flex-wrap:wrap}
-			.gcw-stat{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:10px 18px;text-align:center;backdrop-filter:blur(4px)}
-			.gcw-stat-num{font-size:1.6rem;font-weight:800;color:#fff;line-height:1;display:block}
-			.gcw-stat-lbl{font-size:.7rem;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:.06em;margin-top:2px;display:block}
+			wp_enqueue_script( 'jquery' );
 
-			/* ── Notices ──────────────────────────────── */
-			.gcw-notice{display:flex;align-items:center;gap:10px;background:#f0fdf4;border:1px solid #86efac;color:#166534;padding:12px 18px;border-radius:10px;margin-bottom:20px;font-size:.875rem;font-weight:500}
-			.gcw-notice svg{flex-shrink:0}
+			wp_enqueue_style(
+				'gcw-admin',
+				plugin_dir_url( __FILE__ ) . 'css/gcw-admin.css',
+				array(),
+				self::VERSION
+			);
 
-			/* ── Limit banner ─────────────────────────── */
-			.gcw-limit-banner{display:flex;align-items:center;gap:12px;background:#fffbeb;border:1.5px solid #fcd34d;border-radius:12px;padding:14px 18px;margin-bottom:16px}
-			.gcw-limit-banner svg{flex-shrink:0;color:#f59e0b}
-			.gcw-limit-banner-text{flex:1}
-			.gcw-limit-banner-text strong{display:block;font-size:.85rem;font-weight:700;color:#92400e;margin-bottom:2px}
-			.gcw-limit-banner-text span{font-size:.78rem;color:#b45309}
-			.gcw-limit-banner a{display:inline-flex;align-items:center;gap:5px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border-radius:8px;padding:7px 14px;font-size:.78rem;font-weight:700;text-decoration:none;white-space:nowrap;transition:all .15s}
-			.gcw-limit-banner a:hover{background:linear-gradient(135deg,#d97706,#b45309);color:#fff}
+			$rules            = $this->get_rules();
+			$shipping_methods = $this->get_shipping_methods_list();
 
-			/* ── Sidebar ──────────────────────────────── */
-			.gcw-sidebar{}
-			.gcw-features-card{background:#0f2554;border-radius:14px;overflow:hidden;position:sticky;top:32px}
-			.gcw-features-head{padding:18px 20px 14px;border-bottom:1px solid rgba(255,255,255,.1)}
-			.gcw-features-head h3{margin:0 0 2px;font-size:.95rem;font-weight:700;color:#fff;display:flex;align-items:center;gap:8px}
-			.gcw-features-head p{margin:0;font-size:.75rem;color:rgba(255,255,255,.5);line-height:1.4}
+			$js_data = array(
+				'idx'             => count( $rules ),
+				'ajaxUrl'         => admin_url( 'admin-ajax.php' ),
+				'security'        => wp_create_nonce( 'gcw_ajax' ),
+				'opMap'           => $this->get_operators_map(),
+				'opLabels'        => $this->get_operator_labels(),
+				'gateways'        => $this->get_gateway_options(),
+				'categories'      => $this->get_category_options(),
+				'roles'           => $this->get_role_options(),
+				'countries'       => $this->get_country_options(),
+				'shippingMethods' => $shipping_methods,
+				'condTypes'       => $this->get_condition_types(),
+				'i18n'            => array(
+					'rule'        => esc_html__( 'Rule', 'gateway-conditioner-for-woocommerce' ),
+					'rules'       => esc_html__( 'rules', 'gateway-conditioner-for-woocommerce' ),
+					'ifLabel'     => esc_html__( 'If…', 'gateway-conditioner-for-woocommerce' ),
+					'operator'    => esc_html__( 'Operator', 'gateway-conditioner-for-woocommerce' ),
+					'value'       => esc_html__( 'Value', 'gateway-conditioner-for-woocommerce' ),
+					'thenDisable' => esc_html__( 'Then disable', 'gateway-conditioner-for-woocommerce' ),
+					'remove'      => esc_html__( 'Remove rule', 'gateway-conditioner-for-woocommerce' ),
+					'removeCond'  => esc_html__( 'Remove condition', 'gateway-conditioner-for-woocommerce' ),
+					'andLabel'    => esc_html__( 'AND', 'gateway-conditioner-for-woocommerce' ),
+					'addCond'     => esc_html__( 'Add AND Condition', 'gateway-conditioner-for-woocommerce' ),
+					'noRules'     => esc_html__( 'No rules yet. Click "Add Rule" to get started.', 'gateway-conditioner-for-woocommerce' ),
+					'select'      => esc_html__( '— select —', 'gateway-conditioner-for-woocommerce' ),
+					'searchProd'  => esc_html__( 'Search products…', 'gateway-conditioner-for-woocommerce' ),
+					'searchShip'  => esc_html__( 'Search shipping methods…', 'gateway-conditioner-for-woocommerce' ),
+				),
+			);
 
-			/* ── Plan pills ───────────────────────────── */
-			.gcw-plan-pill{display:inline-flex;align-items:center;gap:4px;font-size:.62rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase;padding:2px 9px;border-radius:20px;line-height:1.6}
-			.gcw-plan-pill.free{background:rgba(125,211,252,.18);color:#7dd3fc;border:1px solid rgba(125,211,252,.3)}
-			.gcw-plan-pill.pro{background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none}
+			wp_enqueue_script(
+				'gcw-admin',
+				plugin_dir_url( __FILE__ ) . 'js/gcw-admin.js',
+				array( 'jquery' ),
+				self::VERSION,
+				true
+			);
 
-			/* ── Feature section labels ───────────────── */
-			.gcw-feat-divider{padding:8px 20px 4px;font-size:.64rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.3)}
+			wp_add_inline_script( 'gcw-admin', 'var GCW = ' . wp_json_encode( $js_data ) . ';', 'before' );
+		}
 
-			/* ── Feature items ────────────────────────── */
-			.gcw-features-list{padding:4px 0}
-			.gcw-feature-item{display:flex;align-items:flex-start;gap:12px;padding:10px 20px;transition:background .15s;cursor:default}
-			.gcw-feature-item:hover{background:rgba(255,255,255,.05)}
-			.gcw-feature-item.is-pro-item{opacity:.72}
-			.gcw-feature-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
-			.gcw-feature-icon.c1{background:rgba(125,211,252,.15)}
-			.gcw-feature-icon.c2{background:rgba(167,243,208,.15)}
-			.gcw-feature-icon.c3{background:rgba(253,224,132,.15)}
-			.gcw-feature-icon.c4{background:rgba(196,181,253,.15)}
-			.gcw-feature-icon.c5{background:rgba(251,191,136,.15)}
-			.gcw-feature-icon.c6{background:rgba(249,168,212,.15)}
-			.gcw-feature-icon.c7{background:rgba(134,239,172,.15)}
-			.gcw-feature-icon.c8{background:rgba(125,211,252,.1)}
-			.gcw-feature-info{flex:1;min-width:0}
-			.gcw-feature-info strong{display:block;font-size:.8rem;font-weight:600;color:#fff;line-height:1.3}
-			.gcw-feature-info span{font-size:.72rem;color:rgba(255,255,255,.45);line-height:1.4;display:block;margin-top:1px}
-			.gcw-feature-badge{flex-shrink:0;margin-top:2px}
+		/* =====================================================================
+		 * AJAX ENDPOINTS
+		 * =================================================================== */
 
-			/* ── Upgrade CTA ──────────────────────────── */
-			.gcw-upgrade-cta{padding:16px 20px;border-top:1px solid rgba(255,255,255,.1);}
-			.gcw-upgrade-btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:11px 16px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:10px;font-size:.85rem;font-weight:700;cursor:pointer;text-decoration:none;letter-spacing:.01em;transition:all .15s;line-height:1}
-			.gcw-upgrade-btn:hover{background:linear-gradient(135deg,#d97706,#b45309);color:#fff;box-shadow:0 4px 14px rgba(245,158,11,.4)}
-			.gcw-upgrade-note{margin:8px 0 0;font-size:.68rem;color:rgba(255,255,255,.8);text-align:center;line-height:1.5}
+		public function ajax_products() {
+			check_ajax_referer( 'gcw_ajax', 'security' );
 
-			/* ── Trial note ───────────────────────────── */
-			.gcw-trial-note{padding:8px 20px 14px;text-align:center}
-			.gcw-trial-note p{margin:0;font-size:.68rem;color:rgba(255,255,255,.9);line-height:1.5}
+			if ( ! current_user_can( 'manage_woocommerce' ) ) {
+				wp_send_json_error( null, 403 );
+			}
 
-			/* ── Pro active indicator ─────────────────── */
-			.gcw-pro-active{display:flex;align-items:center;gap:8px;padding:14px 20px;border-top:1px solid rgba(255,255,255,.08);background:rgba(110,231,183,.06)}
-			.gcw-pro-active svg{flex-shrink:0;color:#6ee7b7}
-			.gcw-pro-active span{font-size:.78rem;font-weight:600;color:#6ee7b7}
+			$q       = isset( $_GET['q'] ) ? sanitize_text_field( wp_unslash( $_GET['q'] ) ) : '';
+			$results = array();
 
-			/* ── Main content area ────────────────────── */
-			.gcw-main{}
-			.gcw-section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px}
-			.gcw-section-title{font-size:.95rem;font-weight:700;color:#0f2554;display:flex;align-items:center;gap:7px;margin:0}
-			.gcw-section-title svg{color:#7c3aed}
-			.gcw-badge{background:#0f2554;color:#7dd3fc;border-radius:20px;font-size:.68rem;font-weight:700;padding:3px 11px;letter-spacing:.04em;border:1px solid rgba(125,211,252,.3)}
+			// If numeric, check if exact product or variation ID exists.
+			if ( is_numeric( $q ) ) {
+				$exact = wc_get_product( absint( $q ) );
+				if ( $exact ) {
+					$results[] = array(
+						'id'   => $exact->get_id(),
+						'text' => wp_strip_all_tags( $exact->get_formatted_name() ),
+					);
+				}
+			}
 
-			/* ── Empty state ──────────────────────────── */
-			.gcw-empty{text-align:center;padding:48px 24px;border:2px dashed #dde3f0;border-radius:14px;color:#94a3b8;margin-bottom:12px;background:#fafbff}
-			.gcw-empty p{margin:10px 0 0;font-size:.875rem}
+			// Check SKU.
+			$sku_id = wc_get_product_id_by_sku( $q );
+			if ( $sku_id && ! in_array( $sku_id, wp_list_pluck( $results, 'id' ), true ) ) {
+				$p_sku = wc_get_product( $sku_id );
+				if ( $p_sku ) {
+					$results[] = array(
+						'id'   => $p_sku->get_id(),
+						'text' => wp_strip_all_tags( $p_sku->get_formatted_name() ),
+					);
+				}
+			}
 
-			/* ── Rule card ────────────────────────────── */
-			.gcw-rule{background:#fff;border:1.5px solid #e8edf5;border-radius:14px;padding:0;margin-bottom:12px;box-shadow:0 2px 8px rgba(15,37,84,.06);transition:box-shadow .2s,border-color .2s;overflow:hidden}
-			.gcw-rule:hover{box-shadow:0 6px 24px rgba(15,37,84,.1);border-color:#c7d7f0}
-			.gcw-rule-topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;background:linear-gradient(135deg,#f8faff,#f1f5fd);border-bottom:1px solid #edf1fa}
-			.gcw-conditions-wrap{padding:18px 18px 0}
-			.gcw-rule-num{font-size:.68rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#0f2554;display:flex;align-items:center;gap:6px}
-			.gcw-rule-num-badge{background:#0f2554;color:#fff;border-radius:6px;padding:2px 8px;font-size:.65rem}
-			.gcw-rule-body{padding:18px 18px 0}
-			.gcw-remove{background:none;border:none;cursor:pointer;color:#cbd5e1;padding:5px;border-radius:7px;display:flex;align-items:center;transition:color .15s,background .15s}
-			.gcw-remove:hover{color:#ef4444;background:#fef2f2}
+			// Search by title/name via query.
+			$query = new WP_Query( array(
+				'post_type'      => array( 'product', 'product_variation' ),
+				'post_status'    => 'publish',
+				's'              => $q,
+				'posts_per_page' => 20,
+				'fields'         => 'ids',
+			) );
 
-			/* ── Fields ───────────────────────────────── */
-			.gcw-field{display:flex;flex-direction:column;gap:5px}
-			.gcw-field label{font-size:.67rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#64748b}
-			.gcw-field select,.gcw-field input[type="number"]{height:40px;padding:0 12px;border:1.5px solid #dde3ef;border-radius:9px;font-size:.875rem;background:#fff;color:#1e293b;width:100%;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%2394a3b8\' stroke-width=\'2.5\'%3E%3Cpath d=\'m6 9 6 6 6-6\'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:32px;transition:border-color .15s,box-shadow .15s}
-			.gcw-field input[type="number"]{background-image:none;padding-right:12px}
-			.gcw-field select:focus,.gcw-field input[type="number"]:focus{border-color:#1a3a7a;outline:none;box-shadow:0 0 0 3px rgba(15,37,84,.1)}
+			foreach ( $query->posts as $id ) {
+				if ( in_array( (int) $id, wp_list_pluck( $results, 'id' ), true ) ) {
+					continue;
+				}
+				$p = wc_get_product( $id );
+				if ( $p ) {
+					$results[] = array(
+						'id'   => $id,
+						'text' => wp_strip_all_tags( $p->get_formatted_name() ),
+					);
+				}
+			}
 
-			/* ── AND separator ────────────────────────── */
-			.gcw-and-separator{display:flex;align-items:center;gap:8px;margin:8px 0}
-			.gcw-and-separator span{background:#0f2554;color:#7dd3fc;font-size:.65rem;font-weight:800;letter-spacing:.1em;padding:2px 10px;border-radius:20px;text-transform:uppercase}
-			.gcw-and-separator::before,.gcw-and-separator::after{content:"";flex:1;height:1px;background:#e8edf5}
-			.gcw-condition-row{margin-bottom:4px}
-			.gcw-rule-grid{display:grid;grid-template-columns:minmax(160px,1fr) 120px minmax(180px,1.4fr) 36px;gap:10px;align-items:end}
-			@media(max-width:860px){.gcw-rule-grid{grid-template-columns:1fr 1fr;gap:10px}}
-			.gcw-remove-cond{background:none;border:none;cursor:pointer;color:#cbd5e1;padding:5px 6px;border-radius:7px;display:flex;align-items:center;transition:color .15s,background .15s;margin-bottom:4px}
-			.gcw-remove-cond:hover{color:#ef4444;background:#fef2f2}
+			wp_send_json( array( 'results' => $results ) );
+		}
 
-			/* ── Add condition btn ────────────────────── */
-			.gcw-add-cond-btn{display:inline-flex;align-items:center;gap:5px;margin:10px;padding:5px 13px;border:1.5px dashed #93b4d8;border-radius:8px;background:none;color:#1a3a7a;font-size:.78rem;font-weight:600;cursor:pointer;transition:all .15s}
-			.gcw-add-cond-btn:hover{background:#eef3fc;border-color:#1a3a7a}
+		public function ajax_shipping() {
+			check_ajax_referer( 'gcw_ajax', 'security' );
 
-			/* ── Then row ─────────────────────────────── */
-			.gcw-then-row{display:flex;align-items:center;gap:14px;margin-top:14px;padding:14px 18px;background:linear-gradient(135deg,#f8faff,#eef3fc);border-top:1px solid #e8edf5}
-			.gcw-then-arrow{color:#94a3b8;flex-shrink:0}
-			.gcw-then-gw{flex:1}
-			.gcw-then-label{display:inline-flex;align-items:center;gap:5px;background:#0f2554;color:#7dd3fc;font-size:.67rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 10px;border-radius:20px;margin-bottom:5px}
+			if ( ! current_user_can( 'manage_woocommerce' ) ) {
+				wp_send_json_error( null, 403 );
+			}
 
-			/* ── Toolbar ──────────────────────────────── */
-			.gcw-toolbar{display:flex;gap:10px;margin-top:20px;align-items:center;padding-top:20px;border-top:1.5px solid #e8edf5;flex-wrap:wrap}
-			.gcw-btn{display:inline-flex;align-items:center;gap:7px;padding:10px 22px;border-radius:10px;font-size:.875rem;font-weight:600;cursor:pointer;border:none;transition:all .15s;text-decoration:none}
-			.gcw-btn-outline{background:#fff;color:#0f2554;border:1.5px solid #c0cfe8}
-			.gcw-btn-outline:hover{background:#f0f5ff;border-color:#0f2554;color:#0f2554}
-			.gcw-btn-outline[disabled],.gcw-btn-outline.is-disabled{opacity:.5;cursor:not-allowed;pointer-events:none}
-			.gcw-btn-primary{background:linear-gradient(135deg,#0f2554 0%,#1a3a7a 100%);color:#fff;box-shadow:0 3px 10px rgba(15,37,84,.3)}
-			.gcw-btn-primary:hover{background:linear-gradient(135deg,#0c1e44,#152f63);box-shadow:0 5px 16px rgba(15,37,84,.4);color:#fff}
-			.gcw-btn-upgrade{background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;box-shadow:0 3px 10px rgba(245,158,11,.3)}
-			.gcw-btn-upgrade:hover{background:linear-gradient(135deg,#d97706,#b45309);color:#fff;box-shadow:0 5px 16px rgba(245,158,11,.4)}
+			wp_send_json( array( 'results' => $this->get_shipping_methods_list() ) );
+		}
 
-			/* ── Pro-locked option style ──────────────── */
-			.gcw-ct option.is-pro-opt{color:#94a3b8}
+		/* =====================================================================
+		 * SAVE RULES & POST-REDIRECT-GET (PRG)
+		 * =================================================================== */
 
-			/* ── Select2 overrides ────────────────────── */
-			.gcw-field .select2-container{width:100%!important}
-			.gcw-field .select2-container--default .select2-selection--single,.gcw-field .select2-container--default .select2-selection--multiple{height:auto!important;min-height:40px!important;border:1.5px solid #dde3ef!important;border-radius:9px!important;background:#fff!important;padding:2px 6px!important}
-			.gcw-field .select2-container--default.select2-container--focus .select2-selection--single,.gcw-field .select2-container--default.select2-container--focus .select2-selection--multiple{border-color:#1a3a7a!important;box-shadow:0 0 0 3px rgba(15,37,84,.1)!important;outline:none!important}
-			.gcw-field .select2-container--default .select2-selection--single .select2-selection__rendered{line-height:36px!important;padding-left:6px!important;color:#1e293b!important;font-size:.875rem!important}
-			.gcw-field .select2-container--default .select2-selection--single .select2-selection__arrow{height:38px!important;right:6px!important}
-			.gcw-field .select2-container--default .select2-selection--multiple .select2-selection__choice{background:#0f2554!important;border:none!important;color:#7dd3fc!important;border-radius:6px!important;padding:2px 8px!important;font-size:.75rem!important;margin:3px 3px 3px 0!important}
-			.gcw-field .select2-container--default .select2-selection--multiple .select2-selection__choice__remove{color:rgba(125,211,252,.6)!important;margin-right:4px!important}
-			.gcw-field .select2-container--default .select2-selection--multiple .select2-selection__choice__remove:hover{color:#7dd3fc!important}
-			.gcw-field .select2-container--default .select2-selection--multiple .select2-search__field{font-size:.875rem!important;margin-top:4px!important}
-			.select2-dropdown{border:1.5px solid #dde3ef!important;border-radius:12px!important;box-shadow:0 10px 30px rgba(15,37,84,.12)!important;overflow:hidden}
-			.select2-results__option{font-size:.875rem!important;padding:9px 14px!important}
-			.select2-container--default .select2-results__option--highlighted{background:#0f2554!important}
-			';
-                wp_add_inline_style( 'gcw-admin', $css );
-                $is_pro = self::is_pro();
-                $rules = $this->get_rules();
-                $upgrade_url = self::get_upgrade_url();
-                $js_data = 'var GCW = ' . wp_json_encode( array(
-                    'idx'           => count( $rules ),
-                    'ajaxUrl'       => admin_url( 'admin-ajax.php' ),
-                    'security'      => wp_create_nonce( 'gcw_ajax' ),
-                    'opMap'         => $this->get_operators_map(),
-                    'opLabels'      => $this->get_operator_labels(),
-                    'gateways'      => $this->get_gateway_options(),
-                    'categories'    => $this->get_category_options(),
-                    'roles'         => $this->get_role_options(),
-                    'countries'     => $this->get_country_options(),
-                    'condTypes'     => $this->get_condition_types(),
-                    'freeCondTypes' => array_keys( $this->get_condition_types() ),
-                    'freeRuleLimit' => 999999,
-                    'isPro'         => true,
-                    'upgradeUrl'    => $upgrade_url,
-                    'i18n'          => array(
-                        'rule'         => esc_html__( 'Rule', 'gateway-conditioner-for-woocommerce' ),
-                        'rules'        => esc_html__( 'rules', 'gateway-conditioner-for-woocommerce' ),
-                        'ifLabel'      => esc_html__( 'If…', 'gateway-conditioner-for-woocommerce' ),
-                        'operator'     => esc_html__( 'Operator', 'gateway-conditioner-for-woocommerce' ),
-                        'value'        => esc_html__( 'Value', 'gateway-conditioner-for-woocommerce' ),
-                        'thenDisable'  => esc_html__( 'Then disable', 'gateway-conditioner-for-woocommerce' ),
-                        'remove'       => esc_html__( 'Remove rule', 'gateway-conditioner-for-woocommerce' ),
-                        'removeCond'   => esc_html__( 'Remove condition', 'gateway-conditioner-for-woocommerce' ),
-                        'andLabel'     => esc_html__( 'AND', 'gateway-conditioner-for-woocommerce' ),
-                        'addCond'      => esc_html__( 'Add AND Condition', 'gateway-conditioner-for-woocommerce' ),
-                        'noRules'      => esc_html__( 'No rules yet. Click "Add Rule" to get started.', 'gateway-conditioner-for-woocommerce' ),
-                        'select'       => esc_html__( '— select —', 'gateway-conditioner-for-woocommerce' ),
-                        'searchProd'   => esc_html__( 'Search products…', 'gateway-conditioner-for-woocommerce' ),
-                        'searchShip'   => esc_html__( 'Search shipping methods…', 'gateway-conditioner-for-woocommerce' ),
-                        'badge'        => esc_html__( 'rules', 'gateway-conditioner-for-woocommerce' ),
-                        'limitReached' => '',
-                        'upgradeCta'   => '',
-                        'proSuffix'    => '',
-                    ),
-                ) ) . ';';
-                wp_enqueue_script(
-                    'gcw-admin',
-                    plugin_dir_url( __FILE__ ) . 'js/gcw-admin.js',
-                    array('jquery', 'select2'),
-                    self::VERSION,
-                    true
-                );
-                wp_add_inline_script( 'gcw-admin', $js_data, 'before' );
-            }
+		/**
+		 * Handles form submission early during admin_init to implement Post-Redirect-Get.
+		 */
+		public function process_save_rules() {
+			if ( ! isset( $_POST[ self::NONCE_NAME ] ) ) {
+				return;
+			}
 
-            /* =====================================================================
-             * AJAX
-             * =================================================================== */
-            public function ajax_products() {
-                check_ajax_referer( 'gcw_ajax', 'security' );
-                if ( !current_user_can( 'manage_woocommerce' ) ) {
-                    wp_send_json_error( null, 403 );
-                }
-                $q = ( isset( $_GET['q'] ) ? sanitize_text_field( wp_unslash( $_GET['q'] ) ) : '' );
-                $query = new WP_Query(array(
-                    'post_type'      => array('product', 'product_variation'),
-                    'post_status'    => 'publish',
-                    's'              => $q,
-                    'posts_per_page' => 20,
-                    'fields'         => 'ids',
-                ));
-                $results = array();
-                foreach ( $query->posts as $id ) {
-                    $p = wc_get_product( $id );
-                    if ( $p ) {
-                        $results[] = array(
-                            'id'   => $id,
-                            'text' => wp_strip_all_tags( $p->get_formatted_name() ),
-                        );
-                    }
-                }
-                wp_send_json( array(
-                    'results' => $results,
-                ) );
-            }
+			check_admin_referer( self::NONCE_ACTION, self::NONCE_NAME );
 
-            public function ajax_shipping() {
-                check_ajax_referer( 'gcw_ajax', 'security' );
-                if ( !current_user_can( 'manage_woocommerce' ) ) {
-                    wp_send_json_error( null, 403 );
-                }
-                $methods = array();
-                foreach ( WC_Shipping_Zones::get_zones() as $zd ) {
-                    $zone = new WC_Shipping_Zone($zd['zone_id']);
-                    foreach ( $zone->get_shipping_methods( true ) as $inst ) {
-                        $methods[] = array(
-                            'id'   => $inst->get_rate_id(),
-                            'text' => $zd['zone_name'] . ' — ' . $inst->get_title(),
-                        );
-                    }
-                }
-                $z0 = new WC_Shipping_Zone(0);
-                foreach ( $z0->get_shipping_methods( true ) as $inst ) {
-                    $methods[] = array(
-                        'id'   => $inst->get_rate_id(),
-                        'text' => esc_html__( 'Rest of World', 'gateway-conditioner-for-woocommerce' ) . ' — ' . $inst->get_title(),
-                    );
-                }
-                wp_send_json( array(
-                    'results' => $methods,
-                ) );
-            }
+			if ( ! current_user_can( 'manage_woocommerce' ) ) {
+				wp_die( esc_html__( 'Permission denied.', 'gateway-conditioner-for-woocommerce' ) );
+			}
 
-            /* =====================================================================
-             * ADMIN PAGE
-             * =================================================================== */
-            public function render_page() {
-                if ( !current_user_can( 'manage_woocommerce' ) ) {
-                    wp_die( esc_html__( 'No permission.', 'gateway-conditioner-for-woocommerce' ) );
-                }
-                $saved = false;
-                if ( isset( $_POST[self::NONCE_NAME] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST[self::NONCE_NAME] ) ), self::NONCE_ACTION ) ) {
-                    $this->save_rules();
-                    $saved = true;
-                }
-                $is_pro = true;
-                $upgrade_url = self::get_upgrade_url();
-                $rules = $this->get_rules();
-                $rule_count = count( $rules );
-                $at_limit = false;
-                $gateways = $this->get_gateway_options();
-                $categories = $this->get_category_options();
-                $roles = $this->get_role_options();
-                $countries = $this->get_country_options();
-                $cond_types = $this->get_condition_types();
-                $op_map = $this->get_operators_map();
-                $op_labels = $this->get_operator_labels();
-                ?>
+			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Sanitized granularly in save_rules().
+			$raw_rules = isset( $_POST['gcw_rules'] ) && is_array( $_POST['gcw_rules'] ) ? wp_unslash( $_POST['gcw_rules'] ) : array();
+
+			$this->save_rules( $raw_rules );
+
+			wp_safe_redirect( add_query_arg(
+				array(
+					'page'      => self::MENU_SLUG,
+					'gcw_saved' => '1',
+				),
+				admin_url( 'admin.php' )
+			) );
+			exit;
+		}
+
+		/**
+		 * Save payment rules to database.
+		 *
+		 * @param array $raw Array of rule rows.
+		 */
+		private function save_rules( $raw = array() ) {
+			if ( ! current_user_can( 'manage_woocommerce' ) ) {
+				return;
+			}
+
+			if ( empty( $raw ) || ! is_array( $raw ) ) {
+				update_option( self::OPTION_KEY, array(), false );
+				return;
+			}
+
+			$allowed_types = array_keys( $this->get_condition_types() );
+			$op_map        = $this->get_operators_map();
+			$clean         = array();
+
+			foreach ( $raw as $row ) {
+				if ( ! is_array( $row ) ) {
+					continue;
+				}
+
+				$gw = isset( $row['gateway'] ) ? sanitize_text_field( $row['gateway'] ) : '';
+				if ( ! $gw ) {
+					continue;
+				}
+
+				$raw_conds = array();
+				if ( ! empty( $row['conditions'] ) && is_array( $row['conditions'] ) ) {
+					$raw_conds = $row['conditions'];
+				} elseif ( isset( $row['condition_type'] ) ) {
+					// Backward compatibility with legacy single-condition rules.
+					$raw_conds = array( array(
+						'condition_type' => isset( $row['condition_type'] ) ? $row['condition_type'] : '',
+						'operator'       => isset( $row['operator'] ) ? $row['operator'] : 'is',
+						'value'          => isset( $row['value'] ) ? $row['value'] : '',
+					) );
+				}
+
+				$clean_conds = array();
+				foreach ( $raw_conds as $cond ) {
+					$ct = isset( $cond['condition_type'] ) ? sanitize_key( $cond['condition_type'] ) : '';
+					$op = isset( $cond['operator'] ) ? sanitize_key( $cond['operator'] ) : 'is';
+
+					// Validate condition type and permitted operators for that condition.
+					if ( ! in_array( $ct, $allowed_types, true ) || empty( $op_map[ $ct ] ) || ! in_array( $op, $op_map[ $ct ], true ) ) {
+						continue;
+					}
+
+					$value = $this->sanitize_value( $ct, isset( $cond['value'] ) ? $cond['value'] : '' );
+					if ( '' === $value || array() === $value ) {
+						continue;
+					}
+
+					$clean_conds[] = array(
+						'condition_type' => $ct,
+						'operator'       => $op,
+						'value'          => $value,
+					);
+				}
+
+				if ( empty( $clean_conds ) ) {
+					continue;
+				}
+
+				$clean[] = array(
+					'conditions' => $clean_conds,
+					'gateway'    => $gw,
+				);
+			}
+
+			update_option( self::OPTION_KEY, $clean, false );
+		}
+
+		private function sanitize_value( $type, $value ) {
+			switch ( $type ) {
+				case 'cart_total':
+					$v = is_array( $value ) ? reset( $value ) : $value;
+					return (string) abs( (float) $v );
+
+				case 'quantity':
+					$v = is_array( $value ) ? reset( $value ) : $value;
+					return (string) absint( $v );
+
+				case 'product':
+					return array_values( array_filter( array_map( 'absint', (array) $value ) ) );
+
+				case 'category':
+					return array_values( array_filter( array_map( 'sanitize_text_field', (array) $value ) ) );
+
+				case 'user_role':
+					$v = is_array( $value ) ? reset( $value ) : $value;
+					return sanitize_key( $v );
+
+				case 'shipping_method':
+					$v = is_array( $value ) ? reset( $value ) : $value;
+					return sanitize_text_field( $v );
+
+				case 'country':
+					$v = is_array( $value ) ? reset( $value ) : $value;
+					$v = strtoupper( sanitize_text_field( $v ) );
+					return preg_match( '/^[A-Z]{2}$/', $v ) ? $v : '';
+
+				default:
+					$v = is_array( $value ) ? reset( $value ) : $value;
+					return sanitize_text_field( $v );
+			}
+		}
+
+		/* =====================================================================
+		 * ADMIN PAGE RENDERING
+		 * =================================================================== */
+
+		public function render_page() {
+			if ( ! current_user_can( 'manage_woocommerce' ) ) {
+				wp_die( esc_html__( 'Permission denied.', 'gateway-conditioner-for-woocommerce' ) );
+			}
+
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading flash status message flag from redirect URL, no form processing or state change.
+			$saved            = isset( $_GET['gcw_saved'] ) && '1' === sanitize_text_field( wp_unslash( $_GET['gcw_saved'] ) );
+			$rules            = $this->get_rules();
+			$rule_count       = count( $rules );
+			$gateways         = $this->get_gateway_options();
+			$categories       = $this->get_category_options();
+			$roles            = $this->get_role_options();
+			$countries        = $this->get_country_options();
+			$cond_types       = $this->get_condition_types();
+			$op_map           = $this->get_operators_map();
+			$op_labels        = $this->get_operator_labels();
+			$shipping_methods = $this->get_shipping_methods_list();
+			?>
 			<div class="wrap" id="gcw-wrap">
 			<div id="gcw-outer">
 
@@ -420,118 +403,89 @@ if ( !function_exists( 'gcw_uninstall_cleanup' ) ) {
 							</svg>
 						</div>
 						<div class="gcw-hero-text">
-							<h1><?php 
-                esc_html_e( 'Gateway Conditioner for WooCommerce', 'gateway-conditioner-for-woocommerce' );
-                ?></h1>
-							<p><?php 
-                esc_html_e( 'Hide payment methods at checkout using flexible IF &#8594; THEN rules. Rules are evaluated in order — full control, zero code.', 'gateway-conditioner-for-woocommerce' );
-                ?></p>
+							<h1><?php esc_html_e( 'Gateway Conditioner for WooCommerce', 'gateway-conditioner-for-woocommerce' ); ?></h1>
+							<p><?php esc_html_e( 'Hide or restrict payment methods at checkout using flexible IF → THEN rules. Rules are evaluated sequentially in real-time.', 'gateway-conditioner-for-woocommerce' ); ?></p>
 						</div>
 					</div>
 					<div class="gcw-hero-right">
 						<div class="gcw-stat">
-							<span class="gcw-stat-num" id="gcw-stat-num"><?php 
-                echo esc_html( $rule_count );
-                ?></span>
-							<span class="gcw-stat-lbl"><?php 
-                esc_html_e( 'Active Rules', 'gateway-conditioner-for-woocommerce' );
-                ?></span>
+							<span class="gcw-stat-num" id="gcw-stat-num"><?php echo esc_html( (string) $rule_count ); ?></span>
+							<span class="gcw-stat-lbl"><?php esc_html_e( 'Active Rules', 'gateway-conditioner-for-woocommerce' ); ?></span>
 						</div>
 						<div class="gcw-stat">
-							<span class="gcw-stat-num">7</span>
-							<span class="gcw-stat-lbl"><?php 
-                esc_html_e( 'Condition Types', 'gateway-conditioner-for-woocommerce' );
-                ?></span>
+							<span class="gcw-stat-num"><?php echo esc_html( (string) count( $cond_types ) ); ?></span>
+							<span class="gcw-stat-lbl"><?php esc_html_e( 'Condition Types', 'gateway-conditioner-for-woocommerce' ); ?></span>
 						</div>
 					</div>
 				</div>
 
-				<?php 
-                if ( $saved ) {
-                    ?>
-				<div class="gcw-notice">
-					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
-					<?php 
-                    esc_html_e( 'Rules saved successfully.', 'gateway-conditioner-for-woocommerce' );
-                    ?>
-				</div>
-				<?php 
-                }
-                ?>
+				<?php if ( $saved ) : ?>
+					<div class="gcw-notice">
+						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+						<span><?php esc_html_e( 'Payment gateway rules saved successfully.', 'gateway-conditioner-for-woocommerce' ); ?></span>
+					</div>
+				<?php endif; ?>
 
 				<!-- ── Two-column layout ──────────────────────────────── -->
 				<div class="gcw-layout">
 
 					<!-- Left: rules editor -->
 					<div class="gcw-main">
-						<form method="post">
-							<?php 
-                wp_nonce_field( self::NONCE_ACTION, self::NONCE_NAME );
-                ?>
-
-
+						<form method="post" action="<?php echo esc_url( admin_url( 'admin.php?page=' . self::MENU_SLUG ) ); ?>">
+							<?php wp_nonce_field( self::NONCE_ACTION, self::NONCE_NAME ); ?>
 
 							<div class="gcw-section-header">
 								<h2 class="gcw-section-title">
-									<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-									<?php 
-                esc_html_e( 'Payment Rules', 'gateway-conditioner-for-woocommerce' );
-                ?>
+									<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+									<?php esc_html_e( 'Payment Rules', 'gateway-conditioner-for-woocommerce' ); ?>
 									<span class="gcw-badge" id="gcw-badge">
-										<?php 
-                echo esc_html( $rule_count . ' ' . __( 'rules', 'gateway-conditioner-for-woocommerce' ) );
-                ?>
+										<?php
+										echo esc_html(
+											sprintf(
+												/* translators: %d: number of rules */
+												_n( '%d rule', '%d rules', $rule_count, 'gateway-conditioner-for-woocommerce' ),
+												$rule_count
+											)
+										);
+										?>
 									</span>
 								</h2>
 							</div>
 
 							<div id="gcw-rules-list">
-								<?php 
-                if ( empty( $rules ) ) {
-                    ?>
+								<?php if ( empty( $rules ) ) : ?>
 									<div class="gcw-empty" id="gcw-empty-state">
-										<svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#c0cfe8" stroke-width="1.5"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-										<p><?php 
-                    esc_html_e( 'No rules yet. Click "Add Rule" to get started.', 'gateway-conditioner-for-woocommerce' );
-                    ?></p>
+										<svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+										<p><?php esc_html_e( 'No rules yet. Click "Add Rule" to get started.', 'gateway-conditioner-for-woocommerce' ); ?></p>
 									</div>
-								<?php 
-                }
-                ?>
+								<?php endif; ?>
 
-								<?php 
-                foreach ( $rules as $i => $rule ) {
-                    ?>
-									<?php 
-                    $this->render_rule_card(
-                        $i,
-                        $rule,
-                        $gateways,
-                        $categories,
-                        $roles,
-                        $countries,
-                        $cond_types,
-                        $op_map,
-                        $op_labels
-                    );
-                    ?>
-								<?php 
-                }
-                ?>
+								<?php
+								foreach ( $rules as $i => $rule ) {
+									$this->render_rule_card(
+										$i,
+										$rule,
+										$gateways,
+										$categories,
+										$roles,
+										$countries,
+										$shipping_methods,
+										$cond_types,
+										$op_map,
+										$op_labels
+									);
+								}
+								?>
 							</div>
 
 							<div class="gcw-toolbar">
 								<button type="button" id="gcw-add-btn" class="gcw-btn gcw-btn-outline">
 									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-									<?php 
-                esc_html_e( 'Add Rule', 'gateway-conditioner-for-woocommerce' );
-                ?>
+									<?php esc_html_e( 'Add Rule', 'gateway-conditioner-for-woocommerce' ); ?>
 								</button>
 								<button type="submit" class="gcw-btn gcw-btn-primary">
 									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-									<?php 
-                esc_html_e( 'Save Rules', 'gateway-conditioner-for-woocommerce' );
-                ?>
+									<?php esc_html_e( 'Save Rules', 'gateway-conditioner-for-woocommerce' ); ?>
 								</button>
 							</div>
 						</form>
@@ -539,299 +493,198 @@ if ( !function_exists( 'gcw_uninstall_cleanup' ) ) {
 
 					<!-- Right: sidebar -->
 					<div class="gcw-sidebar">
-						<div class="gcw-features-card">
 
-							<div class="gcw-features-head">
+						<!-- Reference card -->
+						<div class="gcw-card gcw-card-dark">
+							<div class="gcw-card-head">
 								<h3>
-									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7dd3fc" stroke-width="2.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-									<?php 
-                esc_html_e( 'Features & Analytics', 'gateway-conditioner-for-woocommerce' );
-                ?>
+									<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7dd3fc" stroke-width="2.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+									<?php esc_html_e( 'Supported Conditions', 'gateway-conditioner-for-woocommerce' ); ?>
 								</h3>
-								<p>
-									<?php 
-                esc_html_e( 'All features active — unlimited rules & all 7 conditions.', 'gateway-conditioner-for-woocommerce' );
-                ?>
-								</p>
+								<p><?php esc_html_e( 'Combine conditions with AND logic to create precise checkout rules.', 'gateway-conditioner-for-woocommerce' ); ?></p>
 							</div>
 
 							<div class="gcw-features-list">
+								<?php
+								$conditions_guide = array(
+									array( 'c1', '#7dd3fc', '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>', __( 'Product Category', 'gateway-conditioner-for-woocommerce' ), __( 'Trigger by category — child categories included', 'gateway-conditioner-for-woocommerce' ) ),
+									array( 'c2', '#6ee7b7', '<path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>', __( 'Specific Product', 'gateway-conditioner-for-woocommerce' ), __( 'Target individual products or variations', 'gateway-conditioner-for-woocommerce' ) ),
+									array( 'c3', '#fcd34d', '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>', __( 'Cart Total', 'gateway-conditioner-for-woocommerce' ), __( 'Thresholds above, below, or equal to amount', 'gateway-conditioner-for-woocommerce' ) ),
+									array( 'c4', '#c4b5fd', '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>', __( 'User Role', 'gateway-conditioner-for-woocommerce' ), __( 'Target logged-in roles or guest shoppers', 'gateway-conditioner-for-woocommerce' ) ),
+									array( 'c5', '#fdba74', '<rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>', __( 'Shipping Method', 'gateway-conditioner-for-woocommerce' ), __( 'Trigger based on the selected shipping rate', 'gateway-conditioner-for-woocommerce' ) ),
+									array( 'c6', '#f9a8d4', '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>', __( 'Billing Country', 'gateway-conditioner-for-woocommerce' ), __( 'Restrict gateways by customer billing country', 'gateway-conditioner-for-woocommerce' ) ),
+									array( 'c7', '#86efac', '<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/>', __( 'Order Quantity', 'gateway-conditioner-for-woocommerce' ), __( 'Evaluate based on total item quantity in cart', 'gateway-conditioner-for-woocommerce' ) ),
+								);
 
-								<?php 
-                $all_features = array(
-                    array(
-                        'c1',
-                        '#7dd3fc',
-                        '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
-                        'Product Category',
-                        'Trigger by category — sub-categories included'
-                    ),
-                    array(
-                        'c2',
-                        '#6ee7b7',
-                        '<path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>',
-                        'Specific Product',
-                        'Target individual products or variations'
-                    ),
-                    array(
-                        'c3',
-                        '#fcd34d',
-                        '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
-                        'Cart Total',
-                        'Rules above, below, or equal to an order value'
-                    ),
-                    array(
-                        'c4',
-                        '#c4b5fd',
-                        '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
-                        'User Role',
-                        'Target logged-in roles or guest customers'
-                    ),
-                    array(
-                        'c5',
-                        '#fdba74',
-                        '<rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>',
-                        'Shipping Method',
-                        'Trigger based on the chosen shipping method'
-                    ),
-                    array(
-                        'c6',
-                        '#f9a8d4',
-                        '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
-                        'Billing Country',
-                        'Restrict payment options by country'
-                    ),
-                    array(
-                        'c7',
-                        '#86efac',
-                        '<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/>',
-                        'Order Quantity',
-                        'Apply rules based on total item count'
-                    ),
-                    array(
-                        'c8',
-                        '#7dd3fc',
-                        '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
-                        'Unlimited Rules',
-                        'No cap — create as many rules as you need'
-                    )
-                );
-                foreach ( $all_features as $f ) {
-                    ?>
-								<div class="gcw-feature-item">
-									<div class="gcw-feature-icon <?php 
-                    echo esc_attr( $f[0] );
-                    ?>">
-										<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="<?php 
-                    echo esc_attr( $f[1] );
-                    ?>" stroke-width="2"><?php 
-                    echo $f[2];
-                    // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- static SVG path data
-                    ?></svg>
+								foreach ( $conditions_guide as $cg ) :
+									?>
+									<div class="gcw-feature-item">
+										<div class="gcw-feature-icon <?php echo esc_attr( $cg[0] ); ?>">
+											<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="<?php echo esc_attr( $cg[1] ); ?>" stroke-width="2">
+												<?php echo $cg[2]; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- static SVG path ?>
+											</svg>
+										</div>
+										<div class="gcw-feature-info">
+											<strong><?php echo esc_html( $cg[3] ); ?></strong>
+											<span><?php echo esc_html( $cg[4] ); ?></span>
+										</div>
 									</div>
-									<div class="gcw-feature-info">
-										<strong><?php 
-                    echo esc_html( __( $f[3], 'gateway-conditioner-for-woocommerce' ) );
-                    ?></strong>
-										<span><?php 
-                    echo esc_html( __( $f[4], 'gateway-conditioner-for-woocommerce' ) );
-                    ?></span>
-									</div>
-									<div class="gcw-feature-badge"><span class="gcw-plan-pill pro"><?php 
-                    esc_html_e( 'Pro', 'gateway-conditioner-for-woocommerce' );
-                    ?></span></div>
-								</div>
-								<?php 
-                }
-                ?>
-
-							</div><!-- .gcw-features-list -->
-
-							<!-- Pro active state -->
-							<div class="gcw-pro-active">
-								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-								<span><?php 
-                    esc_html_e( 'Pro version active — all features unlocked', 'gateway-conditioner-for-woocommerce' );
-                    ?></span>
+								<?php endforeach; ?>
 							</div>
 
-						</div><!-- .gcw-features-card -->
+							<div class="gcw-status-box">
+								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+								<span><?php esc_html_e( 'Checkout monitor active & ready', 'gateway-conditioner-for-woocommerce' ); ?></span>
+							</div>
+						</div>
+
+						<!-- Quick Recipes card -->
+						<div class="gcw-card">
+							<div class="gcw-card-head">
+								<h3>
+									<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0f2554" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+									<?php esc_html_e( 'Common Examples', 'gateway-conditioner-for-woocommerce' ); ?>
+								</h3>
+								<p><?php esc_html_e( 'Popular use-cases you can configure in seconds:', 'gateway-conditioner-for-woocommerce' ); ?></p>
+							</div>
+							<div class="gcw-card-body">
+								<div class="gcw-recipe-item">
+									<span class="gcw-recipe-title"><?php esc_html_e( 'COD for Physical Goods Only', 'gateway-conditioner-for-woocommerce' ); ?></span>
+									<span class="gcw-recipe-desc"><?php esc_html_e( 'If Category is "Digital Downloads" → disable Cash on Delivery.', 'gateway-conditioner-for-woocommerce' ); ?></span>
+								</div>
+								<div class="gcw-recipe-item">
+									<span class="gcw-recipe-title"><?php esc_html_e( 'High-Value Orders', 'gateway-conditioner-for-woocommerce' ); ?></span>
+									<span class="gcw-recipe-desc"><?php esc_html_e( 'If Cart Total > 1000 → disable COD or Cheque payment.', 'gateway-conditioner-for-woocommerce' ); ?></span>
+								</div>
+								<div class="gcw-recipe-item">
+									<span class="gcw-recipe-title"><?php esc_html_e( 'Wholesale / B2B Exclusive', 'gateway-conditioner-for-woocommerce' ); ?></span>
+									<span class="gcw-recipe-desc"><?php esc_html_e( 'If User Role is not "Wholesale" → disable BACS Invoice payment.', 'gateway-conditioner-for-woocommerce' ); ?></span>
+								</div>
+							</div>
+						</div>
+
 					</div><!-- .gcw-sidebar -->
 
 				</div><!-- .gcw-layout -->
 
 			</div><!-- #gcw-outer -->
 			</div><!-- #gcw-wrap -->
-			<?php 
-            }
+			<?php
+		}
 
-            /* =====================================================================
-             * RENDER SAVED RULE CARD
-             * =================================================================== */
-            private function render_rule_card(
-                $i,
-                $rule,
-                $gateways,
-                $categories,
-                $roles,
-                $countries,
-                $cond_types,
-                $op_map,
-                $op_labels
-            ) {
-                $gw = ( isset( $rule['gateway'] ) ? $rule['gateway'] : '' );
-                $conditions = ( isset( $rule['conditions'] ) ? $rule['conditions'] : array() );
-                $is_pro = self::is_pro();
-                ?>
-			<div class="gcw-rule" data-index="<?php 
-                echo esc_attr( (string) (int) $i );
-                ?>">
+		/* =====================================================================
+		 * RENDER SAVED RULE CARD
+		 * =================================================================== */
+
+		private function render_rule_card(
+			$i,
+			$rule,
+			$gateways,
+			$categories,
+			$roles,
+			$countries,
+			$shipping_methods,
+			$cond_types,
+			$op_map,
+			$op_labels
+		) {
+			$gw         = isset( $rule['gateway'] ) ? $rule['gateway'] : '';
+			$conditions = isset( $rule['conditions'] ) ? (array) $rule['conditions'] : array();
+			?>
+			<div class="gcw-rule" data-index="<?php echo esc_attr( (string) (int) $i ); ?>">
 				<div class="gcw-rule-topbar">
 					<span class="gcw-rule-num">
 						<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-						<span class="gcw-rule-num-badge"><?php 
-                echo esc_html( (int) $i + 1 );
-                ?></span>
-						<?php 
-                echo esc_html( sprintf( 
-                    /* translators: %d: rule number */
-                    __( 'Rule #%d', 'gateway-conditioner-for-woocommerce' ),
-                    (int) $i + 1
-                 ) );
-                ?>
+						<span class="gcw-rule-num-badge"><?php echo esc_html( (string) ( (int) $i + 1 ) ); ?></span>
+						<span class="gcw-rule-num-text">
+							<?php
+							echo esc_html(
+								sprintf(
+									/* translators: %d: rule number */
+									__( 'Rule #%d', 'gateway-conditioner-for-woocommerce' ),
+									(int) $i + 1
+								)
+							);
+							?>
+						</span>
 					</span>
-					<button type="button" class="gcw-remove" title="<?php 
-                esc_attr_e( 'Remove rule', 'gateway-conditioner-for-woocommerce' );
-                ?>">
-						<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+					<button type="button" class="gcw-remove" title="<?php esc_attr_e( 'Remove rule', 'gateway-conditioner-for-woocommerce' ); ?>">
+						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
 					</button>
 				</div>
 
 				<div class="gcw-rule-body">
 					<div class="gcw-conditions-wrap">
-						<?php 
-                foreach ( $conditions as $ci => $cond ) {
-                    ?>
-							<?php 
-                    $ct = ( isset( $cond['condition_type'] ) ? $cond['condition_type'] : 'category' );
-                    $op = ( isset( $cond['operator'] ) ? $cond['operator'] : 'is' );
-                    $val = ( isset( $cond['value'] ) ? $cond['value'] : '' );
-                    $ops = ( isset( $op_map[$ct] ) ? $op_map[$ct] : array('is', 'is_not') );
-                    ?>
-							<?php 
-                    if ( $ci > 0 ) {
-                        ?>
+						<?php
+						foreach ( $conditions as $ci => $cond ) :
+							$ct  = isset( $cond['condition_type'] ) ? $cond['condition_type'] : 'category';
+							$op  = isset( $cond['operator'] ) ? $cond['operator'] : 'is';
+							$val = isset( $cond['value'] ) ? $cond['value'] : '';
+							$ops = isset( $op_map[ $ct ] ) ? $op_map[ $ct ] : array( 'is', 'is_not' );
+							?>
+							<?php if ( $ci > 0 ) : ?>
 								<div class="gcw-and-separator">
-									<span><?php 
-                        esc_html_e( 'AND', 'gateway-conditioner-for-woocommerce' );
-                        ?></span>
+									<span><?php esc_html_e( 'AND', 'gateway-conditioner-for-woocommerce' ); ?></span>
 								</div>
-							<?php 
-                    }
-                    ?>
-							<div class="gcw-condition-row"
-								data-rule="<?php 
-                    echo esc_attr( (string) (int) $i );
-                    ?>"
-								data-cond="<?php 
-                    echo esc_attr( (string) (int) $ci );
-                    ?>">
+							<?php endif; ?>
+
+							<div class="gcw-condition-row" data-rule="<?php echo esc_attr( (string) (int) $i ); ?>" data-cond="<?php echo esc_attr( (string) (int) $ci ); ?>">
 								<div class="gcw-rule-grid">
 									<div class="gcw-field">
-										<label><?php 
-                    esc_html_e( 'If&#8230;', 'gateway-conditioner-for-woocommerce' );
-                    ?></label>
-										<select name="<?php 
-                    echo esc_attr( 'gcw_rules[' . (int) $i . '][conditions][' . (int) $ci . '][condition_type]' );
-                    ?>" class="gcw-ct">
-											<?php 
-                    foreach ( $cond_types as $key => $label ) {
-                        ?>
-												<option value="<?php 
-                        echo esc_attr( $key );
-                        ?>"
-													<?php 
-                        selected( $ct, $key );
-                        ?>
-												><?php 
-                        echo esc_html( $label );
-                        ?></option>
-											<?php 
-                    }
-                    ?>
-										</select>
-									</div>
-									<div class="gcw-field">
-										<label><?php 
-                    esc_html_e( 'Operator', 'gateway-conditioner-for-woocommerce' );
-                    ?></label>
-										<select name="<?php 
-                    echo esc_attr( 'gcw_rules[' . (int) $i . '][conditions][' . (int) $ci . '][operator]' );
-                    ?>" class="gcw-op">
-											<?php 
-                    foreach ( $ops as $ok ) {
-                        ?>
-												<option value="<?php 
-                        echo esc_attr( $ok );
-                        ?>" <?php 
-                        selected( $op, $ok );
-                        ?>>
-													<?php 
-                        echo esc_html( ( isset( $op_labels[$ok] ) ? $op_labels[$ok] : $ok ) );
-                        ?>
+										<label><?php esc_html_e( 'If…', 'gateway-conditioner-for-woocommerce' ); ?></label>
+										<select name="<?php echo esc_attr( 'gcw_rules[' . (int) $i . '][conditions][' . (int) $ci . '][condition_type]' ); ?>" class="gcw-ct">
+											<?php foreach ( $cond_types as $key => $label ) : ?>
+												<option value="<?php echo esc_attr( $key ); ?>" <?php selected( $ct, $key ); ?>>
+													<?php echo esc_html( $label ); ?>
 												</option>
-											<?php 
-                    }
-                    ?>
+											<?php endforeach; ?>
 										</select>
 									</div>
-									<div class="gcw-field gcw-val-wrap">
-										<label><?php 
-                    esc_html_e( 'Value', 'gateway-conditioner-for-woocommerce' );
-                    ?></label>
-										<?php 
-                    $this->render_value_input(
-                        $i,
-                        $ci,
-                        $ct,
-                        $val,
-                        $categories,
-                        $roles,
-                        $countries
-                    );
-                    ?>
+
+									<div class="gcw-field">
+										<label><?php esc_html_e( 'Operator', 'gateway-conditioner-for-woocommerce' ); ?></label>
+										<select name="<?php echo esc_attr( 'gcw_rules[' . (int) $i . '][conditions][' . (int) $ci . '][operator]' ); ?>" class="gcw-op">
+											<?php foreach ( $ops as $ok ) : ?>
+												<option value="<?php echo esc_attr( $ok ); ?>" <?php selected( $op, $ok ); ?>>
+													<?php echo esc_html( isset( $op_labels[ $ok ] ) ? $op_labels[ $ok ] : $ok ); ?>
+												</option>
+											<?php endforeach; ?>
+										</select>
 									</div>
-									<?php 
-                    if ( $ci > 0 ) {
-                        ?>
+
+									<div class="gcw-field gcw-val-wrap">
+										<label><?php esc_html_e( 'Value', 'gateway-conditioner-for-woocommerce' ); ?></label>
+										<?php
+										$this->render_value_input(
+											$i,
+											$ci,
+											$ct,
+											$val,
+											$categories,
+											$roles,
+											$countries,
+											$shipping_methods
+										);
+										?>
+									</div>
+
+									<?php if ( $ci > 0 ) : ?>
 										<div class="gcw-field" style="justify-content:flex-end">
-											<button type="button" class="gcw-remove-cond" title="<?php 
-                        esc_attr_e( 'Remove condition', 'gateway-conditioner-for-woocommerce' );
-                        ?>">
+											<button type="button" class="gcw-remove-cond" title="<?php esc_attr_e( 'Remove condition', 'gateway-conditioner-for-woocommerce' ); ?>">
 												<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
 											</button>
 										</div>
-									<?php 
-                    } else {
-                        ?>
+									<?php else : ?>
 										<div></div>
-									<?php 
-                    }
-                    ?>
+									<?php endif; ?>
 								</div>
 							</div>
-						<?php 
-                }
-                ?>
+						<?php endforeach; ?>
 					</div>
 
-					<button type="button" class="gcw-add-cond-btn" data-rule="<?php 
-                echo esc_attr( (string) (int) $i );
-                ?>">
+					<button type="button" class="gcw-add-cond-btn" data-rule="<?php echo esc_attr( (string) (int) $i ); ?>">
 						<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-						<?php 
-                esc_html_e( 'Add AND Condition', 'gateway-conditioner-for-woocommerce' );
-                ?>
+						<?php esc_html_e( 'Add AND Condition', 'gateway-conditioner-for-woocommerce' ); ?>
 					</button>
 				</div>
 
@@ -842,466 +695,466 @@ if ( !function_exists( 'gcw_uninstall_cleanup' ) ) {
 					<div class="gcw-field gcw-then-gw">
 						<div class="gcw-then-label">
 							<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 8 13.5 16.5 8 11 2 17"/><polyline points="16 8 22 8 22 14"/></svg>
-							<?php 
-                esc_html_e( 'Then disable', 'gateway-conditioner-for-woocommerce' );
-                ?>
+							<?php esc_html_e( 'Then disable', 'gateway-conditioner-for-woocommerce' ); ?>
 						</div>
-						<select name="<?php 
-                echo esc_attr( 'gcw_rules[' . (int) $i . '][gateway]' );
-                ?>">
-							<option value=""><?php 
-                esc_html_e( '&#8212; select gateway &#8212;', 'gateway-conditioner-for-woocommerce' );
-                ?></option>
-							<?php 
-                foreach ( $gateways as $gid => $gtitle ) {
-                    ?>
-								<option value="<?php 
-                    echo esc_attr( $gid );
-                    ?>" <?php 
-                    selected( $gw, $gid );
-                    ?>><?php 
-                    echo esc_html( $gtitle );
-                    ?></option>
-							<?php 
-                }
-                ?>
+						<select name="<?php echo esc_attr( 'gcw_rules[' . (int) $i . '][gateway]' ); ?>">
+							<option value=""><?php esc_html_e( '— select gateway —', 'gateway-conditioner-for-woocommerce' ); ?></option>
+							<?php foreach ( $gateways as $gid => $gtitle ) : ?>
+								<option value="<?php echo esc_attr( $gid ); ?>" <?php selected( $gw, $gid ); ?>>
+									<?php echo esc_html( $gtitle ); ?>
+								</option>
+							<?php endforeach; ?>
 						</select>
 					</div>
 				</div>
 			</div>
-			<?php 
-            }
+			<?php
+		}
 
-            private function render_value_input(
-                $i,
-                $ci,
-                $ct,
-                $val,
-                $categories,
-                $roles,
-                $countries
-            ) {
-                $name = 'gcw_rules[' . (int) $i . '][conditions][' . (int) $ci . '][value]';
-                $vals = (array) $val;
-                switch ( $ct ) {
-                    case 'category':
-                        echo '<select name="' . esc_attr( $name ) . '[]" multiple class="gcw-s2-multi">';
-                        foreach ( $categories as $slug => $label ) {
-                            $selected = ( in_array( $slug, $vals, true ) ? ' selected="selected"' : '' );
-                            echo '<option value="' . esc_attr( $slug ) . '"' . esc_attr( $selected ) . '>' . esc_html( $label ) . '</option>';
-                        }
-                        echo '</select>';
-                        break;
-                    case 'product':
-                        echo '<select name="' . esc_attr( $name ) . '[]" multiple class="gcw-s2-product">';
-                        foreach ( $vals as $pid ) {
-                            $pid = absint( $pid );
-                            $p = ( $pid ? wc_get_product( $pid ) : null );
-                            if ( $p ) {
-                                echo '<option value="' . esc_attr( (string) $pid ) . '" selected="selected">' . esc_html( wp_strip_all_tags( $p->get_formatted_name() ) ) . '</option>';
-                            }
-                        }
-                        echo '</select>';
-                        break;
-                    case 'user_role':
-                        $current = reset( $vals );
-                        echo '<select name="' . esc_attr( $name ) . '">';
-                        foreach ( $roles as $slug => $label ) {
-                            $selected = ( $current === $slug ? ' selected="selected"' : '' );
-                            echo '<option value="' . esc_attr( $slug ) . '"' . esc_attr( $selected ) . '>' . esc_html( $label ) . '</option>';
-                        }
-                        echo '</select>';
-                        break;
-                    case 'country':
-                        $current = reset( $vals );
-                        echo '<select name="' . esc_attr( $name ) . '" class="gcw-s2-country">';
-                        foreach ( $countries as $code => $cname ) {
-                            $selected = ( $current === $code ? ' selected="selected"' : '' );
-                            echo '<option value="' . esc_attr( $code ) . '"' . esc_attr( $selected ) . '>' . esc_html( $cname ) . '</option>';
-                        }
-                        echo '</select>';
-                        break;
-                    case 'shipping_method':
-                        $saved_val = reset( $vals );
-                        echo '<select name="' . esc_attr( $name ) . '" class="gcw-s2-ship">';
-                        if ( $saved_val ) {
-                            echo '<option value="' . esc_attr( $saved_val ) . '" selected="selected">' . esc_html( $saved_val ) . '</option>';
-                        }
-                        echo '</select>';
-                        break;
-                    case 'cart_total':
-                    case 'quantity':
-                    default:
-                        $num = reset( $vals );
-                        echo '<input type="number" name="' . esc_attr( $name ) . '" value="' . esc_attr( (string) $num ) . '" min="0" step="0.01" placeholder="0">';
-                        break;
-                }
-            }
+		private function render_value_input(
+			$i,
+			$ci,
+			$ct,
+			$val,
+			$categories,
+			$roles,
+			$countries,
+			$shipping_methods
+		) {
+			$name = 'gcw_rules[' . (int) $i . '][conditions][' . (int) $ci . '][value]';
+			$vals = (array) $val;
 
-            /* =====================================================================
-             * SAVE RULES — server-side freemium enforcement
-             * =================================================================== */
-            private function save_rules() {
-                if ( !isset( $_POST[self::NONCE_NAME] ) || !wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST[self::NONCE_NAME] ) ), self::NONCE_ACTION ) ) {
-                    return;
-                }
-                // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.MissingUnslash,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
-                $post_rules = ( isset( $_POST['gcw_rules'] ) ? map_deep( wp_unslash( $_POST['gcw_rules'] ), 'sanitize_text_field' ) : array() );
-                if ( empty( $post_rules ) || !is_array( $post_rules ) ) {
-                    update_option( self::OPTION_KEY, array(), false );
-                    return;
-                }
-                $is_pro = self::is_pro();
-                $raw = (array) $post_rules;
-                $allowed_types = array_keys( $this->get_condition_types() );
-                $allowed_ops = array(
-                    'is',
-                    'is_not',
-                    'gt',
-                    'gte',
-                    'lt',
-                    'lte'
-                );
-                $clean = array();
-                $rule_count = 0;
-                foreach ( $raw as $row ) {
-                    if ( !is_array( $row ) ) {
-                        continue;
-                    }
-                    $gw = sanitize_key( ( isset( $row['gateway'] ) ? $row['gateway'] : '' ) );
-                    if ( !$gw ) {
-                        continue;
-                    }
-                    $raw_conds = array();
-                    if ( !empty( $row['conditions'] ) && is_array( $row['conditions'] ) ) {
-                        $raw_conds = $row['conditions'];
-                    } elseif ( isset( $row['condition_type'] ) ) {
-                        // Legacy v1.x single-condition rows.
-                        $raw_conds = array(array(
-                            'condition_type' => ( isset( $row['condition_type'] ) ? $row['condition_type'] : '' ),
-                            'operator'       => ( isset( $row['operator'] ) ? $row['operator'] : 'is' ),
-                            'value'          => ( isset( $row['value'] ) ? $row['value'] : '' ),
-                        ));
-                    }
-                    $clean_conds = array();
-                    foreach ( $raw_conds as $cond ) {
-                        $ct = sanitize_key( ( isset( $cond['condition_type'] ) ? $cond['condition_type'] : '' ) );
-                        $op = sanitize_key( ( isset( $cond['operator'] ) ? $cond['operator'] : 'is' ) );
-                        if ( !in_array( $ct, $allowed_types, true ) || !in_array( $op, $allowed_ops, true ) ) {
-                            continue;
-                        }
-                        $value = $this->sanitize_value( $ct, ( isset( $cond['value'] ) ? $cond['value'] : '' ) );
-                        if ( '' === $value || array() === $value ) {
-                            continue;
-                        }
-                        $clean_conds[] = array(
-                            'condition_type' => $ct,
-                            'operator'       => $op,
-                            'value'          => $value,
-                        );
-                    }
-                    if ( empty( $clean_conds ) ) {
-                        continue;
-                    }
-                    $clean[] = array(
-                        'conditions' => $clean_conds,
-                        'gateway'    => $gw,
-                    );
-                    $rule_count++;
-                }
-                update_option( self::OPTION_KEY, $clean, false );
-            }
+			switch ( $ct ) {
+				case 'category':
+					echo '<select name="' . esc_attr( $name ) . '[]" multiple class="gcw-s2-multi">';
+					foreach ( $categories as $slug => $label ) {
+						$is_sel = in_array( $slug, $vals, true );
+						echo '<option value="' . esc_attr( $slug ) . '" ' . selected( $is_sel, true, false ) . '>' . esc_html( $label ) . '</option>';
+					}
+					echo '</select>';
+					break;
 
-            private function sanitize_value( $type, $value ) {
-                switch ( $type ) {
-                    case 'cart_total':
-                    case 'quantity':
-                        $v = ( is_array( $value ) ? reset( $value ) : $value );
-                        return (string) abs( (float) $v );
-                    case 'product':
-                        return array_values( array_filter( array_map( 'absint', (array) $value ) ) );
-                    case 'category':
-                        return array_values( array_filter( array_map( 'sanitize_text_field', (array) $value ) ) );
-                    case 'user_role':
-                        $v = ( is_array( $value ) ? reset( $value ) : $value );
-                        return sanitize_key( $v );
-                    case 'shipping_method':
-                        $v = ( is_array( $value ) ? reset( $value ) : $value );
-                        return sanitize_text_field( $v );
-                    case 'country':
-                        $v = ( is_array( $value ) ? reset( $value ) : $value );
-                        $v = strtoupper( sanitize_text_field( $v ) );
-                        return ( 2 === strlen( $v ) ? $v : '' );
-                    default:
-                        $v = ( is_array( $value ) ? reset( $value ) : $value );
-                        return sanitize_text_field( $v );
-                }
-            }
+				case 'product':
+					echo '<select name="' . esc_attr( $name ) . '[]" multiple class="gcw-s2-product">';
+					foreach ( $vals as $pid ) {
+						$pid = absint( $pid );
+						$p   = $pid ? wc_get_product( $pid ) : null;
+						if ( $p ) {
+							echo '<option value="' . esc_attr( (string) $pid ) . '" selected="selected">' . esc_html( wp_strip_all_tags( $p->get_formatted_name() ) ) . '</option>';
+						}
+					}
+					echo '</select>';
+					break;
 
-            /* =====================================================================
-             * FRONT-END GATEWAY FILTERING
-             * =================================================================== */
-            public function filter_gateways( $available_gateways ) {
-                if ( is_admin() && !defined( 'DOING_AJAX' ) ) {
-                    return $available_gateways;
-                }
-                if ( !function_exists( 'WC' ) || !WC()->cart ) {
-                    return $available_gateways;
-                }
-                $rules = $this->get_rules();
-                foreach ( $rules as $rule ) {
-                    if ( isset( $available_gateways[$rule['gateway']] ) && $this->evaluate( $rule ) ) {
-                        unset($available_gateways[$rule['gateway']]);
-                    }
-                }
-                return $available_gateways;
-            }
+				case 'user_role':
+					$current = reset( $vals );
+					echo '<select name="' . esc_attr( $name ) . '">';
+					foreach ( $roles as $slug => $label ) {
+						echo '<option value="' . esc_attr( $slug ) . '" ' . selected( $current, $slug, false ) . '>' . esc_html( $label ) . '</option>';
+					}
+					echo '</select>';
+					break;
 
-            private function evaluate( $rule ) {
-                if ( isset( $rule['conditions'] ) && is_array( $rule['conditions'] ) ) {
-                    $conditions = $rule['conditions'];
-                } elseif ( isset( $rule['condition_type'] ) ) {
-                    $conditions = array(array(
-                        'condition_type' => $rule['condition_type'],
-                        'operator'       => ( isset( $rule['operator'] ) ? $rule['operator'] : 'is' ),
-                        'value'          => ( isset( $rule['value'] ) ? $rule['value'] : '' ),
-                    ));
-                } else {
-                    return false;
-                }
-                foreach ( $conditions as $cond ) {
-                    if ( !$this->evaluate_condition( $cond ) ) {
-                        return false;
-                    }
-                }
-                return !empty( $conditions );
-            }
+				case 'country':
+					$current = reset( $vals );
+					echo '<select name="' . esc_attr( $name ) . '" class="gcw-s2-country">';
+					foreach ( $countries as $code => $cname ) {
+						echo '<option value="' . esc_attr( $code ) . '" ' . selected( $current, $code, false ) . '>' . esc_html( $cname ) . '</option>';
+					}
+					echo '</select>';
+					break;
 
-            private function evaluate_condition( $cond ) {
-                $ct = ( isset( $cond['condition_type'] ) ? $cond['condition_type'] : '' );
-                $op = ( isset( $cond['operator'] ) ? $cond['operator'] : 'is' );
-                $val = ( isset( $cond['value'] ) ? $cond['value'] : '' );
-                switch ( $ct ) {
-                    case 'category':
-                        return $this->eval_category( (array) $val, $op );
-                    case 'product':
-                        return $this->eval_product( (array) $val, $op );
-                    case 'cart_total':
-                        return $this->eval_number( (float) WC()->cart->get_cart_contents_total(), $op, (float) $val );
-                    case 'user_role':
-                        return $this->eval_role( (string) $val, $op );
-                    case 'shipping_method':
-                        return $this->eval_shipping( (string) $val, $op );
-                    case 'country':
-                        return $this->eval_country( (string) $val, $op );
-                    case 'quantity':
-                        return $this->eval_number( (float) WC()->cart->get_cart_contents_count(), $op, (float) $val );
-                }
-                return false;
-            }
+				case 'shipping_method':
+					$current = reset( $vals );
+					echo '<select name="' . esc_attr( $name ) . '" class="gcw-s2-ship">';
+					echo '<option value="">' . esc_html__( '— select —', 'gateway-conditioner-for-woocommerce' ) . '</option>';
+					foreach ( $shipping_methods as $sm ) {
+						$sm_id   = isset( $sm['id'] ) ? $sm['id'] : '';
+						$sm_text = isset( $sm['text'] ) ? $sm['text'] : $sm_id;
+						echo '<option value="' . esc_attr( $sm_id ) . '" ' . selected( $current, $sm_id, false ) . '>' . esc_html( $sm_text ) . '</option>';
+					}
+					// If custom or legacy shipping method not in list, preserve option.
+					if ( $current && ! in_array( $current, wp_list_pluck( $shipping_methods, 'id' ), true ) ) {
+						echo '<option value="' . esc_attr( $current ) . '" selected="selected">' . esc_html( $current ) . '</option>';
+					}
+					echo '</select>';
+					break;
 
-            private function eval_category( $slugs, $op ) {
-                $found = false;
-                foreach ( WC()->cart->get_cart() as $item ) {
-                    $pid = absint( ( isset( $item['product_id'] ) ? $item['product_id'] : 0 ) );
-                    if ( $pid && array_intersect( $slugs, $this->product_cat_slugs( $pid ) ) ) {
-                        $found = true;
-                        break;
-                    }
-                }
-                return ( 'is_not' === $op ? !$found : $found );
-            }
+				case 'cart_total':
+					$num = reset( $vals );
+					echo '<input type="number" name="' . esc_attr( $name ) . '" value="' . esc_attr( (string) $num ) . '" min="0" step="0.01" placeholder="0.00">';
+					break;
 
-            private function eval_product( $ids, $op ) {
-                $ids = array_map( 'intval', $ids );
-                $found = false;
-                foreach ( WC()->cart->get_cart() as $item ) {
-                    if ( in_array( (int) $item['product_id'], $ids, true ) ) {
-                        $found = true;
-                        break;
-                    }
-                }
-                return ( 'is_not' === $op ? !$found : $found );
-            }
+				case 'quantity':
+					$num = reset( $vals );
+					echo '<input type="number" name="' . esc_attr( $name ) . '" value="' . esc_attr( (string) $num ) . '" min="1" step="1" placeholder="1">';
+					break;
 
-            private function eval_number( $actual, $op, $compare ) {
-                switch ( $op ) {
-                    case 'gt':
-                        return $actual > $compare;
-                    case 'gte':
-                        return $actual >= $compare;
-                    case 'lt':
-                        return $actual < $compare;
-                    case 'lte':
-                        return $actual <= $compare;
-                    case 'is':
-                        return abs( $actual - $compare ) < 0.001;
-                    case 'is_not':
-                        return abs( $actual - $compare ) >= 0.001;
-                }
-                return false;
-            }
+				default:
+					$num = reset( $vals );
+					echo '<input type="text" name="' . esc_attr( $name ) . '" value="' . esc_attr( (string) $num ) . '">';
+					break;
+			}
+		}
 
-            private function eval_role( $value, $op ) {
-                $has = ( 'guest' === $value ? !is_user_logged_in() : in_array( $value, (array) wp_get_current_user()->roles, true ) );
-                return ( 'is_not' === $op ? !$has : $has );
-            }
+		/* =====================================================================
+		 * FRONT-END GATEWAY FILTERING
+		 * =================================================================== */
 
-            private function eval_shipping( $value, $op ) {
-                $chosen = ( WC()->session ? (array) WC()->session->get( 'chosen_shipping_methods' ) : array() );
-                $has = in_array( $value, $chosen, true );
-                return ( 'is_not' === $op ? !$has : $has );
-            }
+		public function filter_gateways( $available_gateways ) {
+			if ( is_admin() && ! defined( 'DOING_AJAX' ) ) {
+				return $available_gateways;
+			}
 
-            private function eval_country( $value, $op ) {
-                $country = ( WC()->customer ? strtoupper( (string) WC()->customer->get_billing_country() ) : '' );
-                $has = $country === strtoupper( $value );
-                return ( 'is_not' === $op ? !$has : $has );
-            }
+			if ( ! function_exists( 'WC' ) || ! WC()->cart || WC()->cart->is_empty() ) {
+				return $available_gateways;
+			}
 
-            /* =====================================================================
-             * DATA HELPERS
-             * =================================================================== */
-            public function get_rules() {
-                $rules = (array) get_option( self::OPTION_KEY, array() );
-                foreach ( $rules as $i => $rule ) {
-                    if ( isset( $rule['condition_type'] ) && !isset( $rule['conditions'] ) ) {
-                        $rules[$i] = array(
-                            'conditions' => array(array(
-                                'condition_type' => $rule['condition_type'],
-                                'operator'       => ( isset( $rule['operator'] ) ? $rule['operator'] : 'is' ),
-                                'value'          => ( isset( $rule['value'] ) ? $rule['value'] : '' ),
-                            )),
-                            'gateway'    => ( isset( $rule['gateway'] ) ? $rule['gateway'] : '' ),
-                        );
-                    }
-                }
-                return $rules;
-            }
+			$rules = $this->get_rules();
+			if ( empty( $rules ) ) {
+				return $available_gateways;
+			}
 
-            private function product_cat_slugs( $pid ) {
-                $slugs = array();
-                $terms = get_the_terms( $pid, 'product_cat' );
-                if ( !is_array( $terms ) ) {
-                    return $slugs;
-                }
-                foreach ( $terms as $term ) {
-                    $slugs[] = $term->slug;
-                    foreach ( get_ancestors( $term->term_id, 'product_cat' ) as $anc_id ) {
-                        $anc = get_term( $anc_id, 'product_cat' );
-                        if ( $anc instanceof WP_Term ) {
-                            $slugs[] = $anc->slug;
-                        }
-                    }
-                }
-                return array_unique( $slugs );
-            }
+			foreach ( $rules as $rule ) {
+				$gw_id = isset( $rule['gateway'] ) ? $rule['gateway'] : '';
+				if ( ! empty( $gw_id ) && isset( $available_gateways[ $gw_id ] ) && $this->evaluate( $rule ) ) {
+					unset( $available_gateways[ $gw_id ] );
+				}
+			}
 
-            private function get_gateway_options() {
-                $out = array();
-                foreach ( WC()->payment_gateways()->payment_gateways() as $id => $gw ) {
-                    $out[$id] = ( $gw->get_title() ? $gw->get_title() : $id );
-                }
-                return $out;
-            }
+			return $available_gateways;
+		}
 
-            private function get_category_options() {
-                $out = array();
-                $terms = get_terms( array(
-                    'taxonomy'   => 'product_cat',
-                    'hide_empty' => false,
-                    'orderby'    => 'name',
-                ) );
-                if ( is_array( $terms ) ) {
-                    foreach ( $terms as $t ) {
-                        $out[$t->slug] = $t->name;
-                    }
-                }
-                return $out;
-            }
+		private function evaluate( $rule ) {
+			if ( isset( $rule['conditions'] ) && is_array( $rule['conditions'] ) ) {
+				$conditions = $rule['conditions'];
+			} elseif ( isset( $rule['condition_type'] ) ) {
+				$conditions = array( array(
+					'condition_type' => $rule['condition_type'],
+					'operator'       => isset( $rule['operator'] ) ? $rule['operator'] : 'is',
+					'value'          => isset( $rule['value'] ) ? $rule['value'] : '',
+				) );
+			} else {
+				return false;
+			}
 
-            private function get_role_options() {
-                global $wp_roles;
-                $out = array(
-                    'guest' => esc_html__( 'Guest (not logged in)', 'gateway-conditioner-for-woocommerce' ),
-                );
-                foreach ( $wp_roles->roles as $slug => $data ) {
-                    $out[$slug] = translate_user_role( $data['name'] );
-                }
-                return $out;
-            }
+			if ( empty( $conditions ) ) {
+				return false;
+			}
 
-            private function get_country_options() {
-                return ( WC()->countries ? WC()->countries->get_countries() : array() );
-            }
+			foreach ( $conditions as $cond ) {
+				if ( ! $this->evaluate_condition( $cond ) ) {
+					return false;
+				}
+			}
 
-            private function get_condition_types() {
-                return array(
-                    'category'        => esc_html__( 'Product Category', 'gateway-conditioner-for-woocommerce' ),
-                    'product'         => esc_html__( 'Specific Product', 'gateway-conditioner-for-woocommerce' ),
-                    'cart_total'      => esc_html__( 'Cart Total', 'gateway-conditioner-for-woocommerce' ),
-                    'user_role'       => esc_html__( 'User Role', 'gateway-conditioner-for-woocommerce' ),
-                    'shipping_method' => esc_html__( 'Shipping Method', 'gateway-conditioner-for-woocommerce' ),
-                    'country'         => esc_html__( 'Billing Country', 'gateway-conditioner-for-woocommerce' ),
-                    'quantity'        => esc_html__( 'Order Quantity', 'gateway-conditioner-for-woocommerce' ),
-                );
-            }
+			return true;
+		}
 
-            private function get_operators_map() {
-                return array(
-                    'category'        => array('is', 'is_not'),
-                    'product'         => array('is', 'is_not'),
-                    'cart_total'      => array(
-                        'gt',
-                        'gte',
-                        'lt',
-                        'lte',
-                        'is',
-                        'is_not'
-                    ),
-                    'user_role'       => array('is', 'is_not'),
-                    'shipping_method' => array('is', 'is_not'),
-                    'country'         => array('is', 'is_not'),
-                    'quantity'        => array(
-                        'gt',
-                        'gte',
-                        'lt',
-                        'lte',
-                        'is',
-                        'is_not'
-                    ),
-                );
-            }
+		private function evaluate_condition( $cond ) {
+			$ct  = isset( $cond['condition_type'] ) ? $cond['condition_type'] : '';
+			$op  = isset( $cond['operator'] ) ? $cond['operator'] : 'is';
+			$val = isset( $cond['value'] ) ? $cond['value'] : '';
 
-            private function get_operator_labels() {
-                return array(
-                    'is'     => esc_html__( 'is', 'gateway-conditioner-for-woocommerce' ),
-                    'is_not' => esc_html__( 'is not', 'gateway-conditioner-for-woocommerce' ),
-                    'gt'     => '>',
-                    'gte'    => '>=',
-                    'lt'     => '<',
-                    'lte'    => '<=',
-                );
-            }
+			switch ( $ct ) {
+				case 'category':
+					return $this->eval_category( (array) $val, $op );
 
-        }
+				case 'product':
+					return $this->eval_product( (array) $val, $op );
 
-    }
-    // class_exists
-    add_action( 'plugins_loaded', static function () {
-        if ( !defined( 'WC_VERSION' ) ) {
-            add_action( 'admin_notices', static function () {
-                echo '<div class="notice notice-error"><p>';
-                echo esc_html__( 'Gateway Conditioner for WooCommerce requires WooCommerce to be installed and active.', 'gateway-conditioner-for-woocommerce' );
-                echo '</p></div>';
-            } );
-            return;
-        }
-        GCW_Plugin::get_instance();
-    }, 20 );
-    // Add Settings link on Plugins page.
-    add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), function ( $links ) {
-        $settings_link = '<a href="' . esc_url( admin_url( 'admin.php?page=gcw-settings' ) ) . '">' . esc_html__( 'Settings', 'gateway-conditioner-for-woocommerce' ) . '</a>';
-        array_unshift( $links, $settings_link );
-        return $links;
-    } );
+				case 'cart_total':
+					$total = (float) WC()->cart->get_total( 'edit' );
+					if ( $total <= 0 ) {
+						$total = (float) WC()->cart->get_cart_contents_total();
+					}
+					return $this->eval_number( $total, $op, (float) $val );
+
+				case 'user_role':
+					return $this->eval_role( (string) $val, $op );
+
+				case 'shipping_method':
+					return $this->eval_shipping( (string) $val, $op );
+
+				case 'country':
+					return $this->eval_country( (string) $val, $op );
+
+				case 'quantity':
+					return $this->eval_number( (float) WC()->cart->get_cart_contents_count(), $op, (float) $val );
+			}
+
+			return false;
+		}
+
+		private function eval_category( $slugs, $op ) {
+			$found = false;
+			foreach ( WC()->cart->get_cart() as $item ) {
+				$pid = absint( isset( $item['product_id'] ) ? $item['product_id'] : 0 );
+				if ( $pid && array_intersect( $slugs, $this->product_cat_slugs( $pid ) ) ) {
+					$found = true;
+					break;
+				}
+			}
+			return 'is_not' === $op ? ! $found : $found;
+		}
+
+		private function eval_product( $ids, $op ) {
+			$ids   = array_map( 'intval', $ids );
+			$found = false;
+			foreach ( WC()->cart->get_cart() as $item ) {
+				$parent_id    = absint( isset( $item['product_id'] ) ? $item['product_id'] : 0 );
+				$variation_id = absint( isset( $item['variation_id'] ) ? $item['variation_id'] : 0 );
+
+				if ( ( $parent_id && in_array( $parent_id, $ids, true ) ) || ( $variation_id && in_array( $variation_id, $ids, true ) ) ) {
+					$found = true;
+					break;
+				}
+			}
+			return 'is_not' === $op ? ! $found : $found;
+		}
+
+		private function eval_number( $actual, $op, $compare ) {
+			switch ( $op ) {
+				case 'gt':
+					return $actual > $compare;
+				case 'gte':
+					return $actual >= $compare;
+				case 'lt':
+					return $actual < $compare;
+				case 'lte':
+					return $actual <= $compare;
+				case 'is':
+					return abs( $actual - $compare ) < 0.001;
+				case 'is_not':
+					return abs( $actual - $compare ) >= 0.001;
+			}
+			return false;
+		}
+
+		private function eval_role( $value, $op ) {
+			$has = 'guest' === $value ? ! is_user_logged_in() : in_array( $value, (array) wp_get_current_user()->roles, true );
+			return 'is_not' === $op ? ! $has : $has;
+		}
+
+		private function eval_shipping( $value, $op ) {
+			if ( ! WC()->cart->needs_shipping() ) {
+				return false;
+			}
+
+			$chosen = WC()->session ? (array) WC()->session->get( 'chosen_shipping_methods' ) : array();
+			$has    = false;
+
+			foreach ( $chosen as $chosen_rate ) {
+				if ( $chosen_rate === $value ) {
+					$has = true;
+					break;
+				}
+				// Also match base method (e.g. 'flat_rate' matches 'flat_rate:1').
+				$parts = explode( ':', $chosen_rate );
+				if ( ! empty( $parts[0] ) && $parts[0] === $value ) {
+					$has = true;
+					break;
+				}
+			}
+
+			return 'is_not' === $op ? ! $has : $has;
+		}
+
+		private function eval_country( $value, $op ) {
+			$country = '';
+			if ( WC()->customer ) {
+				$country = (string) WC()->customer->get_billing_country();
+				if ( '' === $country ) {
+					$country = (string) WC()->customer->get_shipping_country();
+				}
+			}
+
+			$country = strtoupper( trim( $country ) );
+			$has     = ( '' !== $country && $country === strtoupper( $value ) );
+
+			return 'is_not' === $op ? ! $has : $has;
+		}
+
+		/* =====================================================================
+		 * DATA HELPERS
+		 * =================================================================== */
+
+		public function get_rules() {
+			$rules = (array) get_option( self::OPTION_KEY, array() );
+			foreach ( $rules as $i => $rule ) {
+				if ( isset( $rule['condition_type'] ) && ! isset( $rule['conditions'] ) ) {
+					$rules[ $i ] = array(
+						'conditions' => array( array(
+							'condition_type' => $rule['condition_type'],
+							'operator'       => isset( $rule['operator'] ) ? $rule['operator'] : 'is',
+							'value'          => isset( $rule['value'] ) ? $rule['value'] : '',
+						) ),
+						'gateway'    => isset( $rule['gateway'] ) ? $rule['gateway'] : '',
+					);
+				}
+			}
+			return $rules;
+		}
+
+		/**
+		 * Retrieve product category slugs including all ancestors, with per-request memoization.
+		 *
+		 * @param int $pid Product ID.
+		 * @return array Array of category slugs.
+		 */
+		private function product_cat_slugs( $pid ) {
+			if ( isset( $this->cat_slugs_cache[ $pid ] ) ) {
+				return $this->cat_slugs_cache[ $pid ];
+			}
+
+			$slugs = array();
+			$terms = get_the_terms( $pid, 'product_cat' );
+
+			if ( is_array( $terms ) ) {
+				foreach ( $terms as $term ) {
+					$slugs[] = $term->slug;
+					foreach ( get_ancestors( $term->term_id, 'product_cat' ) as $anc_id ) {
+						$anc = get_term( $anc_id, 'product_cat' );
+						if ( $anc instanceof WP_Term ) {
+							$slugs[] = $anc->slug;
+						}
+					}
+				}
+			}
+
+			$this->cat_slugs_cache[ $pid ] = array_unique( $slugs );
+			return $this->cat_slugs_cache[ $pid ];
+		}
+
+		private function get_gateway_options() {
+			$out = array();
+			if ( function_exists( 'WC' ) && WC()->payment_gateways() ) {
+				foreach ( WC()->payment_gateways()->payment_gateways() as $id => $gw ) {
+					$title    = $gw->get_title();
+					$out[ $id ] = $title ? $title : $id;
+				}
+			}
+			return $out;
+		}
+
+		private function get_category_options() {
+			$out   = array();
+			$terms = get_terms( array(
+				'taxonomy'   => 'product_cat',
+				'hide_empty' => false,
+				'orderby'    => 'name',
+			) );
+
+			if ( is_array( $terms ) ) {
+				foreach ( $terms as $t ) {
+					$out[ $t->slug ] = $t->name;
+				}
+			}
+			return $out;
+		}
+
+		private function get_role_options() {
+			global $wp_roles;
+			$out = array(
+				'guest' => esc_html__( 'Guest (not logged in)', 'gateway-conditioner-for-woocommerce' ),
+			);
+
+			if ( ! empty( $wp_roles->roles ) && is_array( $wp_roles->roles ) ) {
+				foreach ( $wp_roles->roles as $slug => $data ) {
+					$out[ $slug ] = translate_user_role( $data['name'] );
+				}
+			}
+			return $out;
+		}
+
+		private function get_country_options() {
+			if ( function_exists( 'WC' ) && WC()->countries ) {
+				return WC()->countries->get_countries();
+			}
+			return array();
+		}
+
+		public function get_shipping_methods_list() {
+			$methods = array();
+			if ( ! class_exists( 'WC_Shipping_Zones' ) ) {
+				return $methods;
+			}
+
+			foreach ( WC_Shipping_Zones::get_zones() as $zd ) {
+				$zone = new WC_Shipping_Zone( $zd['zone_id'] );
+				foreach ( $zone->get_shipping_methods( true ) as $inst ) {
+					$methods[] = array(
+						'id'   => $inst->get_rate_id(),
+						'text' => $zd['zone_name'] . ' — ' . $inst->get_title(),
+					);
+				}
+			}
+
+			$z0 = new WC_Shipping_Zone( 0 );
+			foreach ( $z0->get_shipping_methods( true ) as $inst ) {
+				$methods[] = array(
+					'id'   => $inst->get_rate_id(),
+					'text' => esc_html__( 'Rest of World', 'gateway-conditioner-for-woocommerce' ) . ' — ' . $inst->get_title(),
+				);
+			}
+
+			return $methods;
+		}
+
+		private function get_condition_types() {
+			return array(
+				'category'        => esc_html__( 'Product Category', 'gateway-conditioner-for-woocommerce' ),
+				'product'         => esc_html__( 'Specific Product', 'gateway-conditioner-for-woocommerce' ),
+				'cart_total'      => esc_html__( 'Cart Total', 'gateway-conditioner-for-woocommerce' ),
+				'user_role'       => esc_html__( 'User Role', 'gateway-conditioner-for-woocommerce' ),
+				'shipping_method' => esc_html__( 'Shipping Method', 'gateway-conditioner-for-woocommerce' ),
+				'country'         => esc_html__( 'Billing Country', 'gateway-conditioner-for-woocommerce' ),
+				'quantity'        => esc_html__( 'Order Quantity', 'gateway-conditioner-for-woocommerce' ),
+			);
+		}
+
+		private function get_operators_map() {
+			return array(
+				'category'        => array( 'is', 'is_not' ),
+				'product'         => array( 'is', 'is_not' ),
+				'cart_total'      => array( 'gt', 'gte', 'lt', 'lte', 'is', 'is_not' ),
+				'user_role'       => array( 'is', 'is_not' ),
+				'shipping_method' => array( 'is', 'is_not' ),
+				'country'         => array( 'is', 'is_not' ),
+				'quantity'        => array( 'gt', 'gte', 'lt', 'lte', 'is', 'is_not' ),
+			);
+		}
+
+		private function get_operator_labels() {
+			return array(
+				'is'     => esc_html__( 'is', 'gateway-conditioner-for-woocommerce' ),
+				'is_not' => esc_html__( 'is not', 'gateway-conditioner-for-woocommerce' ),
+				'gt'     => '>',
+				'gte'    => '>=',
+				'lt'     => '<',
+				'lte'    => '<=',
+			);
+		}
+
+	}
+
+}
+
+add_action( 'plugins_loaded', static function () {
+	if ( ! defined( 'WC_VERSION' ) ) {
+		add_action( 'admin_notices', static function () {
+			echo '<div class="notice notice-error"><p>';
+			echo esc_html__( 'Gateway Conditioner for WooCommerce requires WooCommerce to be installed and active.', 'gateway-conditioner-for-woocommerce' );
+			echo '</p></div>';
+		} );
+		return;
+	}
+	GCW_Plugin::get_instance();
+}, 20 );
+
+// Add Settings link on Plugins page.
+add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), static function ( $links ) {
+	$settings_link = '<a href="' . esc_url( admin_url( 'admin.php?page=gcw-settings' ) ) . '">' . esc_html__( 'Settings', 'gateway-conditioner-for-woocommerce' ) . '</a>';
+	array_unshift( $links, $settings_link );
+	return $links;
+} );

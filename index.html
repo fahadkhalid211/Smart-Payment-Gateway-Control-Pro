@@ -1,0 +1,1219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gateway Conditioner for WooCommerce - Settings Demo</title>
+    <style>
+        :root {
+            --wp-admin-dark: #1d2327;
+            --wp-admin-highlight: #2271b1;
+            --wp-admin-bg: #f0f0f1;
+            --primary: #0f2554;
+            --primary-light: #1a3a7a;
+            --accent: #7dd3fc;
+            --border: #dde3ef;
+            --text-dark: #1e293b;
+            --text-muted: #64748b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+            background-color: var(--wp-admin-bg);
+            color: var(--text-dark);
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* WordPress Admin Sidebar */
+        aside.wp-sidebar {
+            width: 160px;
+            background-color: var(--wp-admin-dark);
+            color: #f0f0f1;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .wp-sidebar-logo {
+            padding: 16px 14px 12px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: #ffffff;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .wp-sidebar-logo svg {
+            fill: #ffffff;
+            width: 18px;
+            height: 18px;
+        }
+
+        .wp-menu {
+            list-style: none;
+            padding: 10px 0;
+        }
+
+        .wp-menu-item {
+            padding: 9px 14px;
+            font-size: 0.82rem;
+            color: #c3c4c7;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.15s;
+        }
+
+        .wp-menu-item:hover {
+            color: #72aee6;
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .wp-menu-item.active {
+            background-color: var(--wp-admin-highlight);
+            color: #ffffff;
+            font-weight: 600;
+        }
+
+        .wp-submenu-item {
+            padding: 7px 14px 7px 28px;
+            font-size: 0.78rem;
+            color: #c3c4c7;
+            cursor: pointer;
+        }
+
+        .wp-submenu-item.active {
+            color: #ffffff;
+            font-weight: 700;
+            background: #2c3338;
+        }
+
+        /* Main Workspace Container */
+        .wp-content-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        /* Top Admin Bar */
+        header.wp-topbar {
+            height: 32px;
+            background-color: var(--wp-admin-dark);
+            color: #f0f0f1;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            font-size: 0.78rem;
+        }
+
+        .wp-topbar-left, .wp-topbar-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        /* Page Inner Content */
+        main.wp-body {
+            padding: 24px 30px;
+            max-width: 1240px;
+        }
+
+        /* Plugin Specific Styles */
+        .gcw-hero {
+            background: linear-gradient(135deg, #0f2554 0%, #1a3a7a 60%, #1e4799 100%);
+            border-radius: 16px;
+            padding: 28px 32px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            flex-wrap: wrap;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(15, 37, 84, 0.15);
+        }
+
+        .gcw-hero::before {
+            content: "";
+            position: absolute;
+            top: -40px;
+            right: -40px;
+            width: 220px;
+            height: 220px;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0) 70%);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .gcw-hero-left {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .gcw-hero-icon {
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 14px;
+            width: 56px;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .gcw-hero-text h1 {
+            margin: 0 0 6px;
+            font-size: 1.45rem;
+            font-weight: 800;
+            color: #ffffff;
+            letter-spacing: -0.01em;
+            line-height: 1.2;
+        }
+
+        .gcw-hero-text p {
+            margin: 0;
+            font-size: 0.84rem;
+            color: rgba(255, 255, 255, 0.75);
+            max-width: 480px;
+            line-height: 1.5;
+        }
+
+        .gcw-hero-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .gcw-stat {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 12px;
+            padding: 10px 18px;
+            text-align: center;
+            min-width: 100px;
+        }
+
+        .gcw-stat-num {
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: #ffffff;
+            line-height: 1;
+            display: block;
+        }
+
+        .gcw-stat-lbl {
+            font-size: 0.68rem;
+            color: rgba(255, 255, 255, 0.7);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-top: 3px;
+            display: block;
+        }
+
+        .gcw-notice {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #f0fdf4;
+            border: 1px solid #86efac;
+            color: #166534;
+            padding: 12px 18px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 0.88rem;
+            font-weight: 600;
+        }
+
+        .gcw-notice svg {
+            color: #16a34a;
+            flex-shrink: 0;
+        }
+
+        .gcw-layout {
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            gap: 24px;
+            align-items: start;
+        }
+
+        @media (max-width: 1080px) {
+            .gcw-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .gcw-section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+        }
+
+        .gcw-section-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #0f2554;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .gcw-section-title svg {
+            color: #3b82f6;
+        }
+
+        .gcw-badge {
+            background: #0f2554;
+            color: #7dd3fc;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 3px 12px;
+            letter-spacing: 0.04em;
+            border: 1px solid rgba(125, 211, 252, 0.3);
+        }
+
+        /* Rule Card */
+        .gcw-rule {
+            background: #ffffff;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 14px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(15, 37, 84, 0.05);
+            overflow: hidden;
+            transition: box-shadow 0.2s, border-color 0.2s;
+        }
+
+        .gcw-rule:hover {
+            box-shadow: 0 6px 20px rgba(15, 37, 84, 0.08);
+            border-color: #cbd5e1;
+        }
+
+        .gcw-rule-topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 18px;
+            background: linear-gradient(135deg, #f8faff, #f1f5fd);
+            border-bottom: 1px solid #edf1fa;
+        }
+
+        .gcw-rule-num {
+            font-size: 0.72rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #0f2554;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .gcw-rule-num-badge {
+            background: #0f2554;
+            color: #ffffff;
+            border-radius: 6px;
+            padding: 2px 8px;
+            font-size: 0.68rem;
+        }
+
+        .gcw-remove {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #94a3b8;
+            padding: 5px;
+            border-radius: 7px;
+            display: flex;
+            align-items: center;
+            transition: color 0.15s, background 0.15s;
+        }
+
+        .gcw-remove:hover {
+            color: #ef4444;
+            background: #fef2f2;
+        }
+
+        .gcw-rule-body {
+            padding: 18px 18px 14px;
+        }
+
+        .gcw-conditions-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .gcw-condition-row {
+            margin-bottom: 4px;
+        }
+
+        .gcw-rule-grid {
+            display: grid;
+            grid-template-columns: minmax(170px, 1.1fr) 120px minmax(200px, 1.5fr) 36px;
+            gap: 12px;
+            align-items: end;
+        }
+
+        .gcw-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .gcw-field label {
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.07em;
+            text-transform: uppercase;
+            color: #64748b;
+        }
+
+        .gcw-field select,
+        .gcw-field input[type="number"],
+        .gcw-field input[type="text"] {
+            height: 40px;
+            padding: 0 12px;
+            border: 1.5px solid #dde3ef;
+            border-radius: 9px;
+            font-size: 0.875rem;
+            background: #ffffff;
+            color: #1e293b;
+            width: 100%;
+            transition: border-color 0.15s, box-shadow 0.15s;
+            outline: none;
+        }
+
+        .gcw-field select:focus,
+        .gcw-field input[type="number"]:focus,
+        .gcw-field input[type="text"]:focus {
+            border-color: #1a3a7a;
+            box-shadow: 0 0 0 3px rgba(15, 37, 84, 0.1);
+        }
+
+        .gcw-and-separator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 8px 0;
+        }
+
+        .gcw-and-separator span {
+            background: #0f2554;
+            color: #7dd3fc;
+            font-size: 0.65rem;
+            font-weight: 800;
+            letter-spacing: 0.12em;
+            padding: 2px 10px;
+            border-radius: 20px;
+            text-transform: uppercase;
+        }
+
+        .gcw-and-separator::before,
+        .gcw-and-separator::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: #e2e8f0;
+        }
+
+        .gcw-remove-cond {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #94a3b8;
+            padding: 6px;
+            border-radius: 7px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 3px;
+            transition: color 0.15s, background 0.15s;
+        }
+
+        .gcw-remove-cond:hover {
+            color: #ef4444;
+            background: #fef2f2;
+        }
+
+        .gcw-add-cond-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 12px;
+            padding: 6px 14px;
+            border: 1.5px dashed #93b4d8;
+            border-radius: 8px;
+            background: #f8faff;
+            color: #1a3a7a;
+            font-size: 0.78rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .gcw-add-cond-btn:hover {
+            background: #eef3fc;
+            border-color: #1a3a7a;
+            color: #0f2554;
+        }
+
+        .gcw-then-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px 18px;
+            background: linear-gradient(135deg, #f8faff, #eef3fc);
+            border-top: 1px solid #e8edf5;
+        }
+
+        .gcw-then-arrow {
+            color: #94a3b8;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+        }
+
+        .gcw-then-gw {
+            flex: 1;
+        }
+
+        .gcw-then-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #0f2554;
+            color: #7dd3fc;
+            font-size: 0.67rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            padding: 3px 10px;
+            border-radius: 20px;
+            margin-bottom: 6px;
+        }
+
+        .gcw-toolbar {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+            align-items: center;
+            padding-top: 20px;
+            border-top: 1.5px solid #e2e8f0;
+        }
+
+        .gcw-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 11px 24px;
+            border-radius: 10px;
+            font-size: 0.88rem;
+            font-weight: 700;
+            cursor: pointer;
+            border: none;
+            text-decoration: none;
+            line-height: 1;
+            transition: all 0.15s;
+        }
+
+        .gcw-btn-outline {
+            background: #ffffff;
+            color: #0f2554;
+            border: 1.5px solid #cbd5e1;
+        }
+
+        .gcw-btn-outline:hover {
+            background: #f8faff;
+            border-color: #0f2554;
+        }
+
+        .gcw-btn-primary {
+            background: linear-gradient(135deg, #0f2554 0%, #1a3a7a 100%);
+            color: #ffffff;
+            box-shadow: 0 3px 12px rgba(15, 37, 84, 0.25);
+        }
+
+        .gcw-btn-primary:hover {
+            background: linear-gradient(135deg, #0c1e44 0%, #152f63 100%);
+            box-shadow: 0 5px 16px rgba(15, 37, 84, 0.35);
+        }
+
+        /* Sidebar Cards */
+        .gcw-sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .gcw-card {
+            background: #ffffff;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 14px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(15, 37, 84, 0.04);
+        }
+
+        .gcw-card-dark {
+            background: #0f2554;
+            border-color: #1e3a70;
+            color: #ffffff;
+        }
+
+        .gcw-card-head {
+            padding: 18px 20px 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .gcw-card:not(.gcw-card-dark) .gcw-card-head {
+            border-bottom: 1px solid #edf1fa;
+            background: #f8faff;
+        }
+
+        .gcw-card-head h3 {
+            margin: 0 0 4px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .gcw-card-dark .gcw-card-head h3 {
+            color: #ffffff;
+        }
+
+        .gcw-card-head p {
+            margin: 0;
+            font-size: 0.78rem;
+            line-height: 1.45;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .gcw-card:not(.gcw-card-dark) .gcw-card-head p {
+            color: var(--text-muted);
+        }
+
+        .gcw-card-body {
+            padding: 16px 20px;
+        }
+
+        .gcw-features-list {
+            padding: 6px 0;
+        }
+
+        .gcw-feature-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 10px 20px;
+        }
+
+        .gcw-feature-icon {
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            background: rgba(125, 211, 252, 0.15);
+        }
+
+        .gcw-feature-info strong {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        .gcw-feature-info span {
+            font-size: 0.72rem;
+            color: rgba(255, 255, 255, 0.55);
+            display: block;
+            margin-top: 2px;
+        }
+
+        .gcw-status-box {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(110, 231, 183, 0.08);
+        }
+
+        .gcw-status-box svg {
+            color: #6ee7b7;
+            flex-shrink: 0;
+        }
+
+        .gcw-status-box span {
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: #6ee7b7;
+        }
+
+        .gcw-recipe-item {
+            padding: 10px 0;
+            border-bottom: 1px solid #edf1fa;
+        }
+
+        .gcw-recipe-item:last-child {
+            border-bottom: none;
+        }
+
+        .gcw-recipe-title {
+            font-weight: 700;
+            color: #0f2554;
+            display: block;
+            font-size: 0.8rem;
+            margin-bottom: 3px;
+        }
+
+        .gcw-recipe-desc {
+            color: #64748b;
+            font-size: 0.74rem;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- WordPress Admin Sidebar Simulation -->
+    <aside class="wp-sidebar">
+        <div class="wp-sidebar-logo">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489l-4.14-11.35C4.264 9.177 4 8.196 4 7.222 4 4.338 6.338 2 9.222 2c.974 0 1.955.264 2.917.699L12 2zm0 20c-1.393 0-2.716-.285-3.92-.8l4.475-12.28 4.484 12.27c-1.209.52-2.535.81-3.939.81zm7.84-11.139l-4.139 11.35C19.135 20.166 22 16.418 22 12c0-4.477-4.477-10-10-10l-.061.011c.962.435 1.943.699 2.917.699 2.884 0 5.222 2.338 5.222 5.222 0 .974-.264 1.955-.699 2.917l.461.011z"/></svg>
+            <span>My Store</span>
+        </div>
+        <ul class="wp-menu">
+            <li class="wp-menu-item">Dashboard</li>
+            <li class="wp-menu-item active">WooCommerce</li>
+            <li class="wp-submenu-item">Orders</li>
+            <li class="wp-submenu-item">Customers</li>
+            <li class="wp-submenu-item active">Payment Rules</li>
+            <li class="wp-submenu-item">Settings</li>
+            <li class="wp-menu-item">Products</li>
+            <li class="wp-menu-item">Analytics</li>
+            <li class="wp-menu-item">Plugins</li>
+            <li class="wp-menu-item">Settings</li>
+        </ul>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="wp-content-wrapper">
+
+        <!-- WordPress Top Admin Bar -->
+        <header class="wp-topbar">
+            <div class="wp-topbar-left">
+                <span>WordPress 7.1</span>
+                <span>Visit Store</span>
+            </div>
+            <div class="wp-topbar-right">
+                <span>Howdy, Store Admin</span>
+            </div>
+        </header>
+
+        <main class="wp-body">
+
+            <!-- Hero Banner -->
+            <div class="gcw-hero">
+                <div class="gcw-hero-left">
+                    <div class="gcw-hero-icon">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7dd3fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="1" y="4" width="22" height="16" rx="3"/>
+                            <line x1="1" y1="10" x2="23" y2="10"/>
+                            <line x1="5" y1="15" x2="8" y2="15"/>
+                            <line x1="11" y1="15" x2="14" y2="15"/>
+                        </svg>
+                    </div>
+                    <div class="gcw-hero-text">
+                        <h1>Gateway Conditioner for WooCommerce</h1>
+                        <p>Hide or restrict payment methods at checkout using flexible IF &rarr; THEN rules. Rules are evaluated sequentially in real-time.</p>
+                    </div>
+                </div>
+                <div class="gcw-hero-right">
+                    <div class="gcw-stat">
+                        <span class="gcw-stat-num" id="gcw-stat-num">2</span>
+                        <span class="gcw-stat-lbl">Active Rules</span>
+                    </div>
+                    <div class="gcw-stat">
+                        <span class="gcw-stat-num">7</span>
+                        <span class="gcw-stat-lbl">Condition Types</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Notice -->
+            <div class="gcw-notice">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                <span>Payment gateway rules saved successfully.</span>
+            </div>
+
+            <div class="gcw-layout">
+
+                <!-- Left Column: Rule Editor -->
+                <div class="gcw-main">
+                    <div class="gcw-section-header">
+                        <h2 class="gcw-section-title">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                            Payment Rules
+                            <span class="gcw-badge" id="gcw-badge">2 rules</span>
+                        </h2>
+                    </div>
+
+                    <div id="gcw-rules-list">
+
+                        <!-- Rule #1 -->
+                        <div class="gcw-rule" data-index="0">
+                            <div class="gcw-rule-topbar">
+                                <span class="gcw-rule-num">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                                    <span class="gcw-rule-num-badge">1</span>
+                                    <span class="gcw-rule-num-text">Rule #1</span>
+                                </span>
+                                <button type="button" class="gcw-remove" title="Remove rule" onclick="removeRule(this)">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                </button>
+                            </div>
+
+                            <div class="gcw-rule-body">
+                                <div class="gcw-conditions-wrap">
+                                    <div class="gcw-condition-row">
+                                        <div class="gcw-rule-grid">
+                                            <div class="gcw-field">
+                                                <label>If...</label>
+                                                <select onchange="updateValueField(this)">
+                                                    <option value="category" selected>Product Category</option>
+                                                    <option value="product">Specific Product</option>
+                                                    <option value="cart_total">Cart Total</option>
+                                                    <option value="user_role">User Role</option>
+                                                    <option value="shipping_method">Shipping Method</option>
+                                                    <option value="country">Billing Country</option>
+                                                    <option value="quantity">Order Quantity</option>
+                                                </select>
+                                            </div>
+                                            <div class="gcw-field">
+                                                <label>Operator</label>
+                                                <select>
+                                                    <option value="is" selected>is</option>
+                                                    <option value="is_not">is not</option>
+                                                </select>
+                                            </div>
+                                            <div class="gcw-field gcw-val-wrap">
+                                                <label>Value</label>
+                                                <select>
+                                                    <option value="clothing">Clothing</option>
+                                                    <option value="digital-downloads" selected>Digital Downloads</option>
+                                                    <option value="electronics">Electronics</option>
+                                                    <option value="supplements">Supplements</option>
+                                                </select>
+                                            </div>
+                                            <div></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button type="button" class="gcw-add-cond-btn" onclick="addCondition(this)">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                    Add AND Condition
+                                </button>
+                            </div>
+
+                            <div class="gcw-then-row">
+                                <div class="gcw-then-arrow">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7dd3fc" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="5 12 12 19 19 12"/></svg>
+                                </div>
+                                <div class="gcw-field gcw-then-gw">
+                                    <div class="gcw-then-label">
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 8 13.5 16.5 8 11 2 17"/><polyline points="16 8 22 8 22 14"/></svg>
+                                        Then disable
+                                    </div>
+                                    <select>
+                                        <option value="">— select gateway —</option>
+                                        <option value="cod" selected>Cash on Delivery (COD)</option>
+                                        <option value="bacs">Direct Bank Transfer (BACS)</option>
+                                        <option value="cheque">Check Payments</option>
+                                        <option value="paypal">PayPal</option>
+                                        <option value="stripe">Stripe Credit Card</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Rule #2 with AND Condition -->
+                        <div class="gcw-rule" data-index="1">
+                            <div class="gcw-rule-topbar">
+                                <span class="gcw-rule-num">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                                    <span class="gcw-rule-num-badge">2</span>
+                                    <span class="gcw-rule-num-text">Rule #2</span>
+                                </span>
+                                <button type="button" class="gcw-remove" title="Remove rule" onclick="removeRule(this)">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                </button>
+                            </div>
+
+                            <div class="gcw-rule-body">
+                                <div class="gcw-conditions-wrap">
+
+                                    <!-- Condition 1 -->
+                                    <div class="gcw-condition-row">
+                                        <div class="gcw-rule-grid">
+                                            <div class="gcw-field">
+                                                <label>If...</label>
+                                                <select onchange="updateValueField(this)">
+                                                    <option value="category">Product Category</option>
+                                                    <option value="product">Specific Product</option>
+                                                    <option value="cart_total" selected>Cart Total</option>
+                                                    <option value="user_role">User Role</option>
+                                                    <option value="shipping_method">Shipping Method</option>
+                                                    <option value="country">Billing Country</option>
+                                                    <option value="quantity">Order Quantity</option>
+                                                </select>
+                                            </div>
+                                            <div class="gcw-field">
+                                                <label>Operator</label>
+                                                <select>
+                                                    <option value="gt" selected>&gt;</option>
+                                                    <option value="gte">&gt;=</option>
+                                                    <option value="lt">&lt;</option>
+                                                    <option value="lte">&lt;=</option>
+                                                    <option value="is">is</option>
+                                                    <option value="is_not">is not</option>
+                                                </select>
+                                            </div>
+                                            <div class="gcw-field gcw-val-wrap">
+                                                <label>Value</label>
+                                                <input type="number" value="500" placeholder="0.00">
+                                            </div>
+                                            <div></div>
+                                        </div>
+                                    </div>
+
+                                    <!-- AND Separator -->
+                                    <div class="gcw-and-separator">
+                                        <span>AND</span>
+                                    </div>
+
+                                    <!-- Condition 2 -->
+                                    <div class="gcw-condition-row">
+                                        <div class="gcw-rule-grid">
+                                            <div class="gcw-field">
+                                                <label>If...</label>
+                                                <select onchange="updateValueField(this)">
+                                                    <option value="category">Product Category</option>
+                                                    <option value="product">Specific Product</option>
+                                                    <option value="cart_total">Cart Total</option>
+                                                    <option value="user_role">User Role</option>
+                                                    <option value="shipping_method" selected>Shipping Method</option>
+                                                    <option value="country">Billing Country</option>
+                                                    <option value="quantity">Order Quantity</option>
+                                                </select>
+                                            </div>
+                                            <div class="gcw-field">
+                                                <label>Operator</label>
+                                                <select>
+                                                    <option value="is" selected>is</option>
+                                                    <option value="is_not">is not</option>
+                                                </select>
+                                            </div>
+                                            <div class="gcw-field gcw-val-wrap">
+                                                <label>Value</label>
+                                                <select>
+                                                    <option value="flat_rate:1">Domestic — Flat Rate</option>
+                                                    <option value="local_pickup:2" selected>Local Pickup — Free</option>
+                                                    <option value="free_shipping:3">Free Shipping</option>
+                                                    <option value="international:4">International Express</option>
+                                                </select>
+                                            </div>
+                                            <div class="gcw-field" style="justify-content:flex-end">
+                                                <button type="button" class="gcw-remove-cond" title="Remove condition" onclick="removeCondition(this)">
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                </div>
+                                <button type="button" class="gcw-add-cond-btn" onclick="addCondition(this)">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                    Add AND Condition
+                                </button>
+                            </div>
+
+                            <div class="gcw-then-row">
+                                <div class="gcw-then-arrow">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7dd3fc" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="5 12 12 19 19 12"/></svg>
+                                </div>
+                                <div class="gcw-field gcw-then-gw">
+                                    <div class="gcw-then-label">
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 8 13.5 16.5 8 11 2 17"/><polyline points="16 8 22 8 22 14"/></svg>
+                                        Then disable
+                                    </div>
+                                    <select>
+                                        <option value="">— select gateway —</option>
+                                        <option value="cod">Cash on Delivery (COD)</option>
+                                        <option value="bacs" selected>Direct Bank Transfer (BACS)</option>
+                                        <option value="cheque">Check Payments</option>
+                                        <option value="paypal">PayPal</option>
+                                        <option value="stripe">Stripe Credit Card</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <div class="gcw-toolbar">
+                        <button type="button" class="gcw-btn gcw-btn-outline" onclick="addRule()">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            Add Rule
+                        </button>
+                        <button type="button" class="gcw-btn gcw-btn-primary" onclick="alert('Demo Mode: Settings saved successfully!')">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                            Save Rules
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Right Column: Sidebar -->
+                <aside class="gcw-sidebar">
+
+                    <!-- Reference Card -->
+                    <div class="gcw-card gcw-card-dark">
+                        <div class="gcw-card-head">
+                            <h3>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7dd3fc" stroke-width="2.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                                Supported Conditions
+                            </h3>
+                            <p>Combine conditions with AND logic to create precise checkout rules.</p>
+                        </div>
+
+                        <div class="gcw-features-list">
+                            <div class="gcw-feature-item">
+                                <div class="gcw-feature-icon">📁</div>
+                                <div class="gcw-feature-info">
+                                    <strong>Product Category</strong>
+                                    <span>Trigger by category — child categories included</span>
+                                </div>
+                            </div>
+                            <div class="gcw-feature-item">
+                                <div class="gcw-feature-icon">📦</div>
+                                <div class="gcw-feature-info">
+                                    <strong>Specific Product</strong>
+                                    <span>Target individual products or variations</span>
+                                </div>
+                            </div>
+                            <div class="gcw-feature-item">
+                                <div class="gcw-feature-icon">💰</div>
+                                <div class="gcw-feature-info">
+                                    <strong>Cart Total</strong>
+                                    <span>Thresholds above, below, or equal to amount</span>
+                                </div>
+                            </div>
+                            <div class="gcw-feature-item">
+                                <div class="gcw-feature-icon">👤</div>
+                                <div class="gcw-feature-info">
+                                    <strong>User Role</strong>
+                                    <span>Target logged-in roles or guest shoppers</span>
+                                </div>
+                            </div>
+                            <div class="gcw-feature-item">
+                                <div class="gcw-feature-icon">🚚</div>
+                                <div class="gcw-feature-info">
+                                    <strong>Shipping Method</strong>
+                                    <span>Trigger based on the selected shipping rate</span>
+                                </div>
+                            </div>
+                            <div class="gcw-feature-item">
+                                <div class="gcw-feature-icon">🌍</div>
+                                <div class="gcw-feature-info">
+                                    <strong>Billing Country</strong>
+                                    <span>Restrict gateways by customer billing country</span>
+                                </div>
+                            </div>
+                            <div class="gcw-feature-item">
+                                <div class="gcw-feature-icon">🔢</div>
+                                <div class="gcw-feature-info">
+                                    <strong>Order Quantity</strong>
+                                    <span>Evaluate based on total item quantity in cart</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="gcw-status-box">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                            <span>Checkout monitor active & ready</span>
+                        </div>
+                    </div>
+
+                    <!-- Recipes Card -->
+                    <div class="gcw-card">
+                        <div class="gcw-card-head">
+                            <h3 style="color:#0f2554">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0f2554" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                                Common Examples
+                            </h3>
+                            <p>Popular use-cases you can configure in seconds:</p>
+                        </div>
+                        <div class="gcw-card-body">
+                            <div class="gcw-recipe-item">
+                                <span class="gcw-recipe-title">COD for Physical Goods Only</span>
+                                <span class="gcw-recipe-desc">If Category is "Digital Downloads" &rarr; disable Cash on Delivery.</span>
+                            </div>
+                            <div class="gcw-recipe-item">
+                                <span class="gcw-recipe-title">High-Value Orders</span>
+                                <span class="gcw-recipe-desc">If Cart Total &gt; 1000 &rarr; disable COD or Cheque payment.</span>
+                            </div>
+                            <div class="gcw-recipe-item">
+                                <span class="gcw-recipe-title">Wholesale / B2B Exclusive</span>
+                                <span class="gcw-recipe-desc">If User Role is not "Wholesale" &rarr; disable BACS Invoice payment.</span>
+                            </div>
+                        </div>
+                    </div>
+
+                </aside>
+
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Client-Side Demo Interactions -->
+    <script>
+        function updateStats() {
+            var count = document.querySelectorAll('#gcw-rules-list .gcw-rule').length;
+            document.getElementById('gcw-stat-num').textContent = count;
+            document.getElementById('gcw-badge').textContent = count + (count === 1 ? ' rule' : ' rules');
+        }
+
+        function reindexRules() {
+            var rules = document.querySelectorAll('#gcw-rules-list .gcw-rule');
+            rules.forEach(function(rule, idx) {
+                var num = idx + 1;
+                rule.setAttribute('data-index', idx);
+                var badge = rule.querySelector('.gcw-rule-num-badge');
+                if (badge) badge.textContent = num;
+                var txt = rule.querySelector('.gcw-rule-num-text');
+                if (txt) txt.textContent = 'Rule #' + num;
+            });
+            updateStats();
+        }
+
+        function removeRule(btn) {
+            var rule = btn.closest('.gcw-rule');
+            if (rule) {
+                rule.remove();
+                reindexRules();
+            }
+        }
+
+        function removeCondition(btn) {
+            var row = btn.closest('.gcw-condition-row');
+            if (row) {
+                var separator = row.previousElementSibling;
+                if (separator && separator.classList.contains('gcw-and-separator')) {
+                    separator.remove();
+                }
+                row.remove();
+            }
+        }
+
+        function updateValueField(select) {
+            var val = select.value;
+            var row = select.closest('.gcw-rule-grid');
+            var valWrap = row.querySelector('.gcw-val-wrap');
+            var opSelect = row.querySelector('.gcw-field:nth-child(2) select');
+
+            if (val === 'cart_total' || val === 'quantity') {
+                opSelect.innerHTML = '<option value="gt">&gt;</option><option value="gte">&gt;=</option><option value="lt">&lt;</option><option value="lte">&lt;=</option><option value="is">is</option><option value="is_not">is not</option>';
+                valWrap.innerHTML = '<label>Value</label><input type="number" value="' + (val === 'quantity' ? '1' : '100') + '" placeholder="0">';
+            } else {
+                opSelect.innerHTML = '<option value="is">is</option><option value="is_not">is not</option>';
+                if (val === 'category') {
+                    valWrap.innerHTML = '<label>Value</label><select><option value="clothing">Clothing</option><option value="digital-downloads">Digital Downloads</option><option value="electronics">Electronics</option></select>';
+                } else if (val === 'user_role') {
+                    valWrap.innerHTML = '<label>Value</label><select><option value="guest">Guest (not logged in)</option><option value="customer">Customer</option><option value="wholesale_customer">Wholesale Customer</option></select>';
+                } else if (val === 'shipping_method') {
+                    valWrap.innerHTML = '<label>Value</label><select><option value="flat_rate:1">Domestic — Flat Rate</option><option value="local_pickup:2">Local Pickup</option><option value="free_shipping:3">Free Shipping</option></select>';
+                } else if (val === 'country') {
+                    valWrap.innerHTML = '<label>Value</label><select><option value="US">United States (US)</option><option value="GB">United Kingdom (GB)</option><option value="CA">Canada (CA)</option><option value="AU">Australia (AU)</option></select>';
+                } else {
+                    valWrap.innerHTML = '<label>Value</label><input type="text" placeholder="Search product name or SKU...">';
+                }
+            }
+        }
+
+        function addCondition(btn) {
+            var body = btn.closest('.gcw-rule-body');
+            var wrap = body.querySelector('.gcw-conditions-wrap');
+
+            var sep = document.createElement('div');
+            sep.className = 'gcw-and-separator';
+            sep.innerHTML = '<span>AND</span>';
+
+            var row = document.createElement('div');
+            row.className = 'gcw-condition-row';
+            row.innerHTML = '<div class="gcw-rule-grid">' +
+                '<div class="gcw-field"><label>If...</label><select onchange="updateValueField(this)"><option value="category">Product Category</option><option value="product">Specific Product</option><option value="cart_total">Cart Total</option><option value="user_role">User Role</option><option value="shipping_method">Shipping Method</option><option value="country">Billing Country</option><option value="quantity">Order Quantity</option></select></div>' +
+                '<div class="gcw-field"><label>Operator</label><select><option value="is">is</option><option value="is_not">is not</option></select></div>' +
+                '<div class="gcw-field gcw-val-wrap"><label>Value</label><select><option value="clothing">Clothing</option><option value="digital-downloads">Digital Downloads</option></select></div>' +
+                '<div class="gcw-field" style="justify-content:flex-end"><button type="button" class="gcw-remove-cond" title="Remove condition" onclick="removeCondition(this)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>' +
+                '</div>';
+
+            wrap.appendChild(sep);
+            wrap.appendChild(row);
+        }
+
+        function addRule() {
+            var list = document.getElementById('gcw-rules-list');
+            var count = list.querySelectorAll('.gcw-rule').length;
+            var num = count + 1;
+
+            var card = document.createElement('div');
+            card.className = 'gcw-rule';
+            card.setAttribute('data-index', count);
+            card.innerHTML = '<div class="gcw-rule-topbar">' +
+                '<span class="gcw-rule-num"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="gcw-rule-num-badge">' + num + '</span><span class="gcw-rule-num-text">Rule #' + num + '</span></span>' +
+                '<button type="button" class="gcw-remove" title="Remove rule" onclick="removeRule(this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>' +
+                '</div>' +
+                '<div class="gcw-rule-body"><div class="gcw-conditions-wrap">' +
+                '<div class="gcw-condition-row"><div class="gcw-rule-grid">' +
+                '<div class="gcw-field"><label>If...</label><select onchange="updateValueField(this)"><option value="category">Product Category</option><option value="product">Specific Product</option><option value="cart_total">Cart Total</option><option value="user_role">User Role</option><option value="shipping_method">Shipping Method</option><option value="country">Billing Country</option><option value="quantity">Order Quantity</option></select></div>' +
+                '<div class="gcw-field"><label>Operator</label><select><option value="is">is</option><option value="is_not">is not</option></select></div>' +
+                '<div class="gcw-field gcw-val-wrap"><label>Value</label><select><option value="clothing">Clothing</option><option value="digital-downloads">Digital Downloads</option></select></div>' +
+                '<div></div>' +
+                '</div></div>' +
+                '</div>' +
+                '<button type="button" class="gcw-add-cond-btn" onclick="addCondition(this)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add AND Condition</button>' +
+                '</div>' +
+                '<div class="gcw-then-row">' +
+                '<div class="gcw-then-arrow"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7dd3fc" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="5 12 12 19 19 12"/></svg></div>' +
+                '<div class="gcw-field gcw-then-gw"><div class="gcw-then-label"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 8 13.5 16.5 8 11 2 17"/><polyline points="16 8 22 8 22 14"/></svg>Then disable</div>' +
+                '<select><option value="">— select gateway —</option><option value="cod">Cash on Delivery (COD)</option><option value="bacs">Direct Bank Transfer (BACS)</option><option value="cheque">Check Payments</option><option value="paypal">PayPal</option><option value="stripe">Stripe Credit Card</option></select>' +
+                '</div></div>';
+
+            list.appendChild(card);
+            reindexRules();
+        }
+    </script>
+</body>
+</html>

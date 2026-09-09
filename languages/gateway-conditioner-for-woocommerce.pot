@@ -1,0 +1,269 @@
+# Copyright (C) 2026 Fahad Khalid
+# This file is distributed under the GPL-2.0-or-later.
+msgid ""
+msgstr ""
+"Project-Id-Version: Gateway Conditioner for WooCommerce 2.2.0\n"
+"Report-Msgid-Bugs-To: \n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"POT-Creation-Date: 2026-09-09T00:00:00+00:00\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"X-Generator: WP-CLI\n"
+"X-Domain: gateway-conditioner-for-woocommerce\n"
+
+#: gateway-conditioner-for-woocommerce.php:94
+#: gateway-conditioner-for-woocommerce.php:336
+msgid "Payment Rules"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:143
+msgid "Rule"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:144
+msgid "rules"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:145
+#: gateway-conditioner-for-woocommerce.php:446
+msgid "If…"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:146
+#: gateway-conditioner-for-woocommerce.php:457
+msgid "Operator"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:147
+#: gateway-conditioner-for-woocommerce.php:468
+msgid "Value"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:148
+#: gateway-conditioner-for-woocommerce.php:500
+msgid "Then disable"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:149
+#: gateway-conditioner-for-woocommerce.php:427
+msgid "Remove rule"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:150
+#: gateway-conditioner-for-woocommerce.php:483
+msgid "Remove condition"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:151
+#: gateway-conditioner-for-woocommerce.php:440
+msgid "AND"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:152
+#: gateway-conditioner-for-woocommerce.php:493
+msgid "Add AND Condition"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:153
+#: gateway-conditioner-for-woocommerce.php:356
+msgid "No rules yet. Click \"Add Rule\" to get started."
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:154
+#: gateway-conditioner-for-woocommerce.php:567
+msgid "— select —"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:155
+msgid "Search products…"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:156
+msgid "Search shipping methods…"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:236
+msgid "Security check failed."
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:240
+#: gateway-conditioner-for-woocommerce.php:316
+msgid "Permission denied."
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:325
+msgid "Gateway Conditioner for WooCommerce"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:326
+msgid "Hide or restrict payment methods at checkout using flexible IF → THEN rules. Rules are evaluated sequentially in real-time."
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:333
+msgid "Active Rules"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:337
+msgid "Condition Types"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:345
+msgid "Payment gateway rules saved successfully."
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:342
+msgid "%d rule"
+msgid_plural "%d rules"
+msgstr[0] ""
+msgstr[1] ""
+
+#: gateway-conditioner-for-woocommerce.php:382
+msgid "Add Rule"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:386
+msgid "Save Rules"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:398
+msgid "Supported Conditions"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:400
+msgid "Combine conditions with AND logic to create precise checkout rules."
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:405
+#: gateway-conditioner-for-woocommerce.php:732
+msgid "Product Category"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:405
+msgid "Trigger by category — child categories included"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:406
+#: gateway-conditioner-for-woocommerce.php:733
+msgid "Specific Product"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:406
+msgid "Target individual products or variations"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:407
+#: gateway-conditioner-for-woocommerce.php:734
+msgid "Cart Total"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:407
+msgid "Thresholds above, below, or equal to amount"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:408
+#: gateway-conditioner-for-woocommerce.php:735
+msgid "User Role"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:408
+msgid "Target logged-in roles or guest shoppers"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:409
+#: gateway-conditioner-for-woocommerce.php:736
+msgid "Shipping Method"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:409
+msgid "Trigger based on the selected shipping rate"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:410
+#: gateway-conditioner-for-woocommerce.php:737
+msgid "Billing Country"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:410
+msgid "Restrict gateways by customer billing country"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:411
+#: gateway-conditioner-for-woocommerce.php:738
+msgid "Order Quantity"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:411
+msgid "Evaluate based on total item quantity in cart"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:433
+msgid "Checkout monitor active & ready"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:440
+msgid "Common Examples"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:442
+msgid "Popular use-cases you can configure in seconds:"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:446
+msgid "COD for Physical Goods Only"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:447
+msgid "If Category is \"Digital Downloads\" → disable Cash on Delivery."
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:450
+msgid "High-Value Orders"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:451
+msgid "If Cart Total > 1000 → disable COD or Cheque payment."
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:454
+msgid "Wholesale / B2B Exclusive"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:455
+msgid "If User Role is not \"Wholesale\" → disable BACS Invoice payment."
+msgstr ""
+
+#. translators: %d: rule number
+#: gateway-conditioner-for-woocommerce.php:420
+msgid "Rule #%d"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:503
+msgid "— select gateway —"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:692
+msgid "Guest (not logged in)"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:723
+msgid "Rest of World"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:757
+msgid "is"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:758
+msgid "is not"
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:774
+msgid "Gateway Conditioner for WooCommerce requires WooCommerce to be installed and active."
+msgstr ""
+
+#: gateway-conditioner-for-woocommerce.php:783
+msgid "Settings"
+msgstr ""

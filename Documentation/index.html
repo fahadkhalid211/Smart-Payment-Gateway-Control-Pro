@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gateway Conditioner for WooCommerce - Documentation</title>
+    <style>
+        :root {
+            --primary: #0f2554;
+            --primary-light: #1a3a7a;
+            --accent: #0284c7;
+            --accent-light: #7dd3fc;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --success: #16a34a;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 40px 20px 80px;
+        }
+
+        header.doc-header {
+            background: linear-gradient(135deg, #0f2554 0%, #1a3a7a 60%, #1e4799 100%);
+            color: #ffffff;
+            padding: 48px 40px;
+            border-radius: 16px;
+            margin-bottom: 40px;
+            box-shadow: 0 10px 25px rgba(15, 37, 84, 0.15);
+        }
+
+        header.doc-header h1 {
+            font-size: 2.2rem;
+            font-weight: 800;
+            margin-bottom: 12px;
+            letter-spacing: -0.02em;
+        }
+
+        header.doc-header p {
+            font-size: 1.05rem;
+            color: rgba(255, 255, 255, 0.85);
+            max-width: 680px;
+        }
+
+        .meta-badges {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+            flex-wrap: wrap;
+        }
+
+        .meta-badge {
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 32px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        h2 {
+            color: var(--primary);
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 16px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--border);
+        }
+
+        h3 {
+            color: var(--primary-light);
+            font-size: 1.15rem;
+            font-weight: 700;
+            margin: 24px 0 10px;
+        }
+
+        p {
+            margin-bottom: 14px;
+            color: var(--text);
+        }
+
+        ul, ol {
+            margin: 0 0 20px 24px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        .alert-box {
+            background: #eff6ff;
+            border-left: 4px solid var(--accent);
+            padding: 16px 20px;
+            border-radius: 0 8px 8px 0;
+            margin: 20px 0;
+            font-size: 0.95rem;
+        }
+
+        .code-snippet {
+            background: #0f172a;
+            color: #f8fafc;
+            padding: 14px 18px;
+            border-radius: 8px;
+            font-family: Consolas, Monaco, "Courier New", monospace;
+            font-size: 0.9rem;
+            margin: 12px 0 18px;
+            overflow-x: auto;
+        }
+
+        table.doc-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        table.doc-table th, table.doc-table td {
+            border: 1px solid var(--border);
+            padding: 12px 16px;
+            text-align: left;
+            font-size: 0.92rem;
+        }
+
+        table.doc-table th {
+            background: #f1f5f9;
+            color: var(--primary);
+            font-weight: 700;
+        }
+
+        footer {
+            text-align: center;
+            padding: 30px 0;
+            color: var(--text-muted);
+            font-size: 0.88rem;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <header class="doc-header">
+        <h1>Gateway Conditioner for WooCommerce</h1>
+        <p>Official User Guide & Technical Documentation for conditional payment gateway management in WooCommerce.</p>
+        <div class="meta-badges">
+            <span class="meta-badge">Version 2.2.0</span>
+            <span class="meta-badge">WordPress 5.8 to 7.1+</span>
+            <span class="meta-badge">WooCommerce 6.0 to 9.9+</span>
+            <span class="meta-badge">HPOS Compatible</span>
+            <span class="meta-badge">Checkout Blocks Ready</span>
+        </div>
+    </header>
+
+    <div class="card">
+        <h2>1. Overview</h2>
+        <p><strong>Gateway Conditioner for WooCommerce</strong> gives store administrators complete, granular control over which payment gateways appear at checkout. Build flexible IF &rarr; THEN rules evaluated sequentially in real time with support for multi-condition AND groups across 7 condition types.</p>
+        <p>The plugin operates with zero performance penalty using in-memory request memoization and preloaded shipping zones, guaranteeing instant checkout evaluation.</p>
+    </div>
+
+    <div class="card">
+        <h2>2. Requirements</h2>
+        <ul>
+            <li><strong>WordPress:</strong> 5.8 or higher (fully tested up to WordPress 7.1+)</li>
+            <li><strong>WooCommerce:</strong> 6.0 or higher (fully tested up to WooCommerce 9.9+)</li>
+            <li><strong>PHP:</strong> 7.4 or higher (supports PHP 8.0, 8.1, 8.2, 8.3+)</li>
+            <li><strong>High-Performance Order Storage (HPOS):</strong> Supported</li>
+            <li><strong>WooCommerce Cart &amp; Checkout Blocks:</strong> Supported</li>
+        </ul>
+    </div>
+
+    <div class="card">
+        <h2>3. Installation Guide</h2>
+
+        <h3>Method A: Standard WordPress Dashboard Upload (Recommended)</h3>
+        <ol>
+            <li>Download the installable plugin zip file: <code>gateway-conditioner-for-woocommerce.zip</code>.</li>
+            <li>Log into your WordPress admin dashboard.</li>
+            <li>Go to <strong>Plugins &rarr; Add New &rarr; Upload Plugin</strong>.</li>
+            <li>Click <strong>Choose File</strong>, select <code>gateway-conditioner-for-woocommerce.zip</code>, and click <strong>Install Now</strong>.</li>
+            <li>Once installed, click <strong>Activate Plugin</strong>.</li>
+        </ol>
+
+        <h3>Method B: FTP Upload</h3>
+        <ol>
+            <li>Unzip <code>gateway-conditioner-for-woocommerce.zip</code> on your computer.</li>
+            <li>Upload the unzipped <code>gateway-conditioner-for-woocommerce</code> folder to your web server in the directory: <code>/wp-content/plugins/</code>.</li>
+            <li>Go to <strong>Plugins &rarr; Installed Plugins</strong> in WordPress and activate <strong>Gateway Conditioner for WooCommerce</strong>.</li>
+        </ol>
+
+        <div class="alert-box">
+            <strong>Note:</strong> WooCommerce must be installed and activated before activating this plugin.
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>4. Creating Payment Rules</h2>
+        <p>Navigate to <strong>WooCommerce &rarr; Payment Rules</strong> in your WordPress admin menu.</p>
+
+        <h3>Rule Anatomy</h3>
+        <p>Each rule consists of two parts:</p>
+        <ol>
+            <li><strong>IF (Condition Group):</strong> One or more conditions that must be satisfied.</li>
+            <li><strong>THEN (Action):</strong> The payment gateway to disable if the conditions are met.</li>
+        </ol>
+
+        <h3>Adding AND Conditions</h3>
+        <p>Click the <strong>Add AND Condition</strong> button within any rule card to require multiple criteria simultaneously (e.g. <em>If Cart Total &gt; $500 AND Shipping Method is Local Pickup &rarr; Disable Cash on Delivery</em>).</p>
+
+        <h3>Supported Condition Types</h3>
+        <table class="doc-table">
+            <thead>
+                <tr>
+                    <th>Condition Type</th>
+                    <th>Operators</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Product Category</strong></td>
+                    <td>is, is not</td>
+                    <td>Triggers when items from specific product categories are in the cart. Automatically inherits child sub-categories.</td>
+                </tr>
+                <tr>
+                    <td><strong>Specific Product</strong></td>
+                    <td>is, is not</td>
+                    <td>Targets individual products or variations by title, SKU, or ID.</td>
+                </tr>
+                <tr>
+                    <td><strong>Cart Total</strong></td>
+                    <td>&gt;, &gt;=, &lt;, &lt;=, is, is not</td>
+                    <td>Evaluates against the order total or subtotal amount.</td>
+                </tr>
+                <tr>
+                    <td><strong>User Role</strong></td>
+                    <td>is, is not</td>
+                    <td>Targets customer roles (e.g. Wholesale, Customer) or Guest shoppers.</td>
+                </tr>
+                <tr>
+                    <td><strong>Shipping Method</strong></td>
+                    <td>is, is not</td>
+                    <td>Evaluates the selected shipping rate or zone (e.g. Local Pickup vs Flat Rate).</td>
+                </tr>
+                <tr>
+                    <td><strong>Billing Country</strong></td>
+                    <td>is, is not</td>
+                    <td>Evaluates customer billing location with fallback to shipping country.</td>
+                </tr>
+                <tr>
+                    <td><strong>Order Quantity</strong></td>
+                    <td>&gt;, &gt;=, &lt;, &lt;=, is, is not</td>
+                    <td>Evaluates the total number of items in the customer cart.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h2>5. Common Practical Recipes</h2>
+
+        <h3>Recipe 1: Disable Cash on Delivery for Digital Products</h3>
+        <ul>
+            <li><strong>IF:</strong> Product Category is <em>Digital Downloads</em></li>
+            <li><strong>THEN:</strong> Disable <em>Cash on Delivery</em></li>
+        </ul>
+
+        <h3>Recipe 2: Disable Cheque/COD for High-Value Orders</h3>
+        <ul>
+            <li><strong>IF:</strong> Cart Total &gt; <em>1000</em></li>
+            <li><strong>THEN:</strong> Disable <em>Cash on Delivery</em></li>
+        </ul>
+
+        <h3>Recipe 3: B2B Wholesale Invoice Only</h3>
+        <ul>
+            <li><strong>IF:</strong> User Role is not <em>Wholesale Customer</em></li>
+            <li><strong>THEN:</strong> Disable <em>Direct Bank Transfer (BACS)</em></li>
+        </ul>
+
+        <h3>Recipe 4: Allow COD Exclusively for Local Pickup</h3>
+        <ul>
+            <li><strong>IF:</strong> Shipping Method is not <em>Local Pickup</em></li>
+            <li><strong>THEN:</strong> Disable <em>Cash on Delivery</em></li>
+        </ul>
+    </div>
+
+    <div class="card">
+        <h2>6. Troubleshooting &amp; FAQs</h2>
+        <p><strong>Q: Why does a payment gateway still appear after creating a rule?</strong><br />
+        Ensure that all AND conditions inside the rule are met. If a rule has multiple conditions, every condition must evaluate to true for the gateway to be disabled.</p>
+
+        <p><strong>Q: Is this plugin compatible with WooCommerce HPOS?</strong><br />
+        Yes. The plugin declares official compatibility with custom order tables (HPOS) and does not perform legacy post queries on orders.</p>
+
+        <p><strong>Q: Does this plugin work with WooCommerce Blocks checkout?</strong><br />
+        Yes. The plugin filters gateways via the standard WooCommerce available payment gateways API, which is utilized by both shortcode checkout and Cart &amp; Checkout Blocks.</p>
+    </div>
+
+    <footer>
+        <p>&copy; 2026 Gateway Conditioner for WooCommerce. All rights reserved.</p>
+    </footer>
+
+</div>
+
+</body>
+</html>

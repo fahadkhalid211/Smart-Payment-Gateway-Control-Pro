@@ -1,0 +1,8 @@
+﻿services:
+  - type: static
+    name: gateway-conditioner-demo
+    buildCommand: ""
+    staticPublishPath: .
+    envVars:
+      - key: NODE_ENV
+        value: production

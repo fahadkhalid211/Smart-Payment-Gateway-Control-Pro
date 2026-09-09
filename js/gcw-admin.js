@@ -1,18 +1,25 @@
+/**
+ * Gateway Conditioner for WooCommerce - Admin JavaScript
+ *
+ * @package GatewayConditionerForWooCommerce
+ * @version 2.2.0
+ */
+
 /* global GCW, jQuery */
-(function ( $ ) {
+( function ( $ ) {
 	'use strict';
 
-	var IDX            = GCW.idx;
-	var AJAX_URL       = GCW.ajaxUrl;
-	var SECURITY       = GCW.security;
-	var OP_MAP         = GCW.opMap;
-	var OP_LABELS      = GCW.opLabels;
-	var GATEWAYS       = GCW.gateways;
-	var CATEGORIES     = GCW.categories;
-	var ROLES          = GCW.roles;
-	var COUNTRIES      = GCW.countries;
-	var COND_TYPES     = GCW.condTypes;
-	var I18N           = GCW.i18n;
+	var AJAX_URL          = GCW.ajaxUrl;
+	var SECURITY          = GCW.security;
+	var OP_MAP            = GCW.opMap || {};
+	var OP_LABELS         = GCW.opLabels || {};
+	var GATEWAYS          = GCW.gateways || {};
+	var CATEGORIES        = GCW.categories || {};
+	var ROLES             = GCW.roles || {};
+	var COUNTRIES         = GCW.countries || {};
+	var SHIPPING_METHODS  = GCW.shippingMethods || [];
+	var COND_TYPES        = GCW.condTypes || {};
+	var I18N              = GCW.i18n || {};
 
 	/* -------------------------------------------------------------------------
 	 * Helpers
@@ -25,8 +32,21 @@
 	function buildOptions( map, selected ) {
 		var html = '';
 		$.each( map, function ( k, v ) {
-			html += '<option value="' + esc( k ) + '"' + ( k === selected ? ' selected' : '' ) + '>' + esc( v ) + '</option>';
+			html += '<option value="' + esc( k ) + '"' + ( k === selected ? ' selected="selected"' : '' ) + '>' + esc( v ) + '</option>';
 		} );
+		return html;
+	}
+
+	function buildShippingOptions( selected ) {
+		var html = '<option value="">' + esc( I18N.select || '— select —' ) + '</option>';
+		if ( Array.isArray( SHIPPING_METHODS ) ) {
+			$.each( SHIPPING_METHODS, function ( _, item ) {
+				if ( item && item.id ) {
+					var isSel = String( item.id ) === String( selected );
+					html += '<option value="' + esc( item.id ) + '"' + ( isSel ? ' selected="selected"' : '' ) + '>' + esc( item.text ) + '</option>';
+				}
+			} );
+		}
 		return html;
 	}
 
@@ -34,21 +54,16 @@
 		var ops  = OP_MAP[ ct ] || [ 'is', 'is_not' ];
 		var html = '';
 		$.each( ops, function ( _, k ) {
-			html += '<option value="' + esc( k ) + '"' + ( k === sel ? ' selected' : '' ) + '>' + esc( OP_LABELS[ k ] ) + '</option>';
+			var label = OP_LABELS[ k ] ? OP_LABELS[ k ] : k;
+			html += '<option value="' + esc( k ) + '"' + ( k === sel ? ' selected="selected"' : '' ) + '>' + esc( label ) + '</option>';
 		} );
 		return html;
 	}
 
-	/**
-	 * Build the condition-type <select> options.
-	 * All condition types are unlocked in the Pro version.
-	 */
 	function buildCondTypeOptions( selected ) {
 		var html = '';
 		$.each( COND_TYPES, function ( k, v ) {
-			html += '<option value="' + esc( k ) + '"' +
-				( k === selected ? ' selected' : '' ) +
-				'>' + esc( v ) + '</option>';
+			html += '<option value="' + esc( k ) + '"' + ( k === selected ? ' selected="selected"' : '' ) + '>' + esc( v ) + '</option>';
 		} );
 		return html;
 	}
@@ -60,7 +75,7 @@
 		if ( 'category' === ct ) {
 			var opts = '';
 			$.each( CATEGORIES, function ( slug, lbl ) {
-				var sel = vals.indexOf( slug ) > -1 ? ' selected' : '';
+				var sel = vals.indexOf( slug ) > -1 ? ' selected="selected"' : '';
 				opts += '<option value="' + esc( slug ) + '"' + sel + '>' + esc( lbl ) + '</option>';
 			} );
 			return '<select name="' + esc( name ) + '[]" multiple class="gcw-s2-multi">' + opts + '</select>';
@@ -79,9 +94,7 @@
 		}
 
 		if ( 'shipping_method' === ct ) {
-			var cur = vals[ 0 ] || '';
-			var opt = cur ? '<option value="' + esc( cur ) + '" selected>' + esc( cur ) + '</option>' : '';
-			return '<select name="' + esc( name ) + '" class="gcw-s2-ship">' + opt + '</select>';
+			return '<select name="' + esc( name ) + '" class="gcw-s2-ship">' + buildShippingOptions( vals[ 0 ] || '' ) + '</select>';
 		}
 
 		return '<input type="number" name="' + esc( name ) + '" value="' + esc( vals[ 0 ] || '' ) + '" min="0" step="0.01" placeholder="0">';
@@ -125,7 +138,7 @@
 			'<span class="gcw-rule-num">' +
 			'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>' +
 			'<span class="gcw-rule-num-badge">' + ( i + 1 ) + '</span> ' +
-			esc( I18N.rule ) + ' #' + ( i + 1 ) + '</span>' +
+			'<span class="gcw-rule-num-text">' + esc( I18N.rule ) + ' #' + ( i + 1 ) + '</span></span>' +
 			'<button type="button" class="gcw-remove" title="' + esc( I18N.remove ) + '">' +
 			'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
 			'</button></div>' +
@@ -147,16 +160,28 @@
 	 * ---------------------------------------------------------------------- */
 
 	function initS2( card ) {
+		if ( typeof $.fn.select2 !== 'function' ) {
+			return;
+		}
+
 		card.find( '.gcw-s2-multi' ).each( function () {
 			if ( ! $( this ).hasClass( 'select2-hidden-accessible' ) ) {
 				$( this ).select2( { width: '100%', closeOnSelect: false } );
 			}
 		} );
+
 		card.find( '.gcw-s2-country' ).each( function () {
 			if ( ! $( this ).hasClass( 'select2-hidden-accessible' ) ) {
 				$( this ).select2( { width: '100%' } );
 			}
 		} );
+
+		card.find( '.gcw-s2-ship' ).each( function () {
+			if ( ! $( this ).hasClass( 'select2-hidden-accessible' ) ) {
+				$( this ).select2( { width: '100%' } );
+			}
+		} );
+
 		card.find( '.gcw-s2-product' ).each( function () {
 			if ( ! $( this ).hasClass( 'select2-hidden-accessible' ) ) {
 				$( this ).select2( {
@@ -167,30 +192,12 @@
 					ajax: {
 						url: AJAX_URL,
 						dataType: 'json',
-						delay: 300,
+						delay: 250,
 						data: function ( p ) {
 							return { action: 'gcw_search_products', q: p.term, security: SECURITY };
 						},
 						processResults: function ( d ) {
-							return { results: d.results };
-						},
-					},
-				} );
-			}
-		} );
-		card.find( '.gcw-s2-ship' ).each( function () {
-			if ( ! $( this ).hasClass( 'select2-hidden-accessible' ) ) {
-				$( this ).select2( {
-					width: '100%',
-					placeholder: I18N.searchShip,
-					ajax: {
-						url: AJAX_URL,
-						dataType: 'json',
-						data: function () {
-							return { action: 'gcw_search_shipping', security: SECURITY };
-						},
-						processResults: function ( d ) {
-							return { results: d.results };
+							return { results: ( d && d.results ) ? d.results : [] };
 						},
 					},
 				} );
@@ -199,6 +206,9 @@
 	}
 
 	function destroyS2( wrap ) {
+		if ( typeof $.fn.select2 !== 'function' ) {
+			return;
+		}
 		wrap.find( 'select' ).each( function () {
 			try {
 				if ( $( this ).hasClass( 'select2-hidden-accessible' ) ) {
@@ -209,7 +219,7 @@
 	}
 
 	/* -------------------------------------------------------------------------
-	 * Counting & UI state
+	 * Counting & Re-indexing
 	 * ---------------------------------------------------------------------- */
 
 	function ruleCount() {
@@ -222,25 +232,49 @@
 
 	function reindexConditions( ruleCard ) {
 		ruleCard.find( '.gcw-condition-row' ).each( function ( ci ) {
-			$( this ).attr( 'data-cond', ci );
-			$( this ).find( '[name]' ).each( function () {
+			var row = $( this );
+			row.attr( 'data-cond', ci );
+			row.find( '[name]' ).each( function () {
 				var n = $( this ).attr( 'name' );
-				n = n.replace( /\[conditions\]\[\d+\]/, '[conditions][' + ci + ']' );
-				$( this ).attr( 'name', n );
+				if ( n ) {
+					n = n.replace( /\[conditions\]\[\d+\]/, '[conditions][' + ci + ']' );
+					$( this ).attr( 'name', n );
+				}
 			} );
 		} );
 	}
 
-	/** Update the badge count and rule counter */
+	function reindexRules() {
+		$( '#gcw-rules-list .gcw-rule' ).each( function ( ri ) {
+			var card = $( this );
+			card.attr( 'data-index', ri );
+			card.find( '.gcw-rule-num-badge' ).first().text( ri + 1 );
+			card.find( '.gcw-rule-num-text' ).first().text( ( I18N.rule || 'Rule' ) + ' #' + ( ri + 1 ) );
+			card.find( '.gcw-add-cond-btn' ).attr( 'data-rule', ri );
+
+			card.find( '.gcw-condition-row' ).each( function () {
+				$( this ).attr( 'data-rule', ri );
+			} );
+
+			card.find( '[name]' ).each( function () {
+				var name = $( this ).attr( 'name' );
+				if ( name ) {
+					name = name.replace( /^gcw_rules\[\d+\]/, 'gcw_rules[' + ri + ']' );
+					$( this ).attr( 'name', name );
+				}
+			} );
+		} );
+	}
+
 	function updateUI() {
 		var count = ruleCount();
-		$( '#gcw-badge' ).text( count + ' ' + I18N.badge );
+		var badgeText = count + ' ' + ( count === 1 ? ( I18N.rule || 'rule' ) : ( I18N.rules || 'rules' ) );
+		$( '#gcw-badge' ).text( badgeText );
 		$( '#gcw-stat-num' ).text( count );
-		$( '#gcw-add-btn' ).prop( 'disabled', false ).removeClass( 'is-disabled' );
 	}
 
 	/* -------------------------------------------------------------------------
-	 * Event handlers
+	 * Event Handlers
 	 * ---------------------------------------------------------------------- */
 
 	/** Condition type change — rebuild operator & value fields */
@@ -249,8 +283,8 @@
 		var ct     = select.val();
 		var row    = select.closest( '.gcw-condition-row' );
 		var card   = row.closest( '.gcw-rule' );
-		var ri     = card.data( 'index' );
-		var ci     = row.data( 'cond' );
+		var ri     = card.attr( 'data-index' );
+		var ci     = row.attr( 'data-cond' );
 
 		row.find( '.gcw-op' ).html( buildOpOptions( ct, 'is' ) );
 		var vw = row.find( '.gcw-val-wrap' );
@@ -262,7 +296,7 @@
 	/** Add AND condition */
 	$( document ).on( 'click', '.gcw-add-cond-btn', function () {
 		var card = $( this ).closest( '.gcw-rule' );
-		var ri   = card.data( 'index' );
+		var ri   = card.attr( 'data-index' );
 		var ci   = condCount( card );
 		var wrap = card.find( '.gcw-conditions-wrap' );
 		wrap.append( buildAndSeparator() );
@@ -283,10 +317,11 @@
 	/** Add rule */
 	$( '#gcw-add-btn' ).on( 'click', function () {
 		$( '#gcw-empty-state' ).remove();
-		var card = $( buildCard( IDX ) );
+		var currentCount = ruleCount();
+		var card         = $( buildCard( currentCount ) );
 		$( '#gcw-rules-list' ).append( card );
 		initS2( card );
-		IDX++;
+		reindexRules();
 		updateUI();
 	} );
 
@@ -296,10 +331,11 @@
 		if ( ! $( '.gcw-rule' ).length ) {
 			$( '#gcw-rules-list' ).prepend(
 				'<div class="gcw-empty" id="gcw-empty-state">' +
-				'<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>' +
+				'<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>' +
 				'<p>' + esc( I18N.noRules ) + '</p></div>'
 			);
 		}
+		reindexRules();
 		updateUI();
 	} );
 
@@ -307,10 +343,11 @@
 	 * Init on page load
 	 * ---------------------------------------------------------------------- */
 
-	$( '.gcw-rule' ).each( function () {
-		initS2( $( this ) );
+	$( function () {
+		$( '.gcw-rule' ).each( function () {
+			initS2( $( this ) );
+		} );
+		updateUI();
 	} );
-
-	updateUI();
 
 }( jQuery ) );
